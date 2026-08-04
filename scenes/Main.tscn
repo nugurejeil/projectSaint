@@ -1,0 +1,19 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/Main.gd" id="1_main"]
+[ext_resource type="PackedScene" path="res://scenes/Unit.tscn" id="2_unit"]
+
+[node name="Main" type="Node2D"]
+script = ExtResource("1_main")
+
+[node name="Camera2D" type="Camera2D" parent="."]
+position = Vector2(640, 360)
+
+[node name="Battlefield" type="Polygon2D" parent="."]
+color = Color(0.20, 0.28, 0.20, 1)
+polygon = PackedVector2Array(40, 40, 1240, 40, 1240, 680, 40, 680)
+
+[node name="Units" type="Node2D" parent="."]
+
+[node name="PlayerUnit" parent="Units" instance=ExtResource("2_unit")]
+position = Vector2(400, 360)
