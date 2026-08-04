@@ -1,7 +1,6 @@
 class_name Unit
 extends Area2D
 
-signal clicked(unit: Unit)
 signal died(unit: Unit)
 
 @export var max_health: float = 100.0
@@ -16,6 +15,10 @@ var _target_pos: Vector2 = Vector2.ZERO
 var _has_target: bool = false
 var _selected: bool = false
 var _cooldown_left: float = 0.0
+var _flash_time_left: float = 0.0
+
+const FLASH_DURATION: float = 0.15
+const FLASH_COLOR := Color(3.0, 3.0, 3.0, 1.0)
 
 @onready var _body: Polygon2D = $Body
 @onready var _hp_fill: Polygon2D = $HPBarFill
@@ -31,7 +34,6 @@ const COLOR_ENEMY := Color(1.00, 0.35, 0.30)
 func _ready() -> void:
 	health = max_health
 	add_to_group("units")
-	input_event.connect(_on_input_event)
 	_refresh_color()
 
 
@@ -39,6 +41,18 @@ func _physics_process(delta: float) -> void:
 	_update_ai()
 	_update_combat(delta)
 	_update_movement(delta)
+	_update_flash(delta)
+
+
+func _update_flash(delta: float) -> void:
+	if _flash_time_left <= 0.0:
+		return
+	_flash_time_left -= delta
+	if _flash_time_left <= 0.0:
+		modulate = Color.WHITE
+		return
+	var t := _flash_time_left / FLASH_DURATION
+	modulate = Color.WHITE.lerp(FLASH_COLOR, t)
 
 
 func _update_ai() -> void:
@@ -95,6 +109,7 @@ func take_damage(amount: float) -> void:
 	var before := health
 	health -= amount
 	_hp_fill.scale.x = clampf(health / max_health, 0.0, 1.0)
+	_flash_time_left = FLASH_DURATION
 	print("[Unit] %s took %.0f dmg: %.0f -> %.0f" % [name, amount, before, health])
 	if health <= 0.0:
 		print("[Unit] %s died" % name)
@@ -119,9 +134,3 @@ func _refresh_color() -> void:
 		_body.color = COLOR_ENEMY
 	else:
 		_body.color = COLOR_PLAYER_SELECTED if _selected else COLOR_PLAYER
-
-
-func _on_input_event(_viewport: Node, event: InputEvent, _shape_idx: int) -> void:
-	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		clicked.emit(self)
-		get_viewport().set_input_as_handled()

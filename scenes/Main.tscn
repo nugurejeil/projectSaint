@@ -1,7 +1,8 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/Main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://scenes/Unit.tscn" id="2_unit"]
+[ext_resource type="Script" path="res://scripts/DragBox.gd" id="3_dragbox"]
 
 [sub_resource type="SystemFont" id="SystemFont_result"]
 font_names = PackedStringArray("Apple SD Gothic Neo", "sans-serif")
@@ -18,11 +19,25 @@ polygon = PackedVector2Array(40, 40, 1240, 40, 1240, 680, 40, 680)
 
 [node name="Units" type="Node2D" parent="."]
 
-[node name="PlayerUnit" parent="Units" instance=ExtResource("2_unit")]
+[node name="PlayerUnit1" parent="Units" instance=ExtResource("2_unit")]
+position = Vector2(400, 260)
+
+[node name="PlayerUnit2" parent="Units" instance=ExtResource("2_unit")]
 position = Vector2(400, 360)
 
-[node name="EnemyUnit" parent="Units" instance=ExtResource("2_unit")]
+[node name="PlayerUnit3" parent="Units" instance=ExtResource("2_unit")]
+position = Vector2(400, 460)
+
+[node name="EnemyUnit1" parent="Units" instance=ExtResource("2_unit")]
+position = Vector2(880, 260)
+team = 1
+
+[node name="EnemyUnit2" parent="Units" instance=ExtResource("2_unit")]
 position = Vector2(880, 360)
+team = 1
+
+[node name="EnemyUnit3" parent="Units" instance=ExtResource("2_unit")]
+position = Vector2(880, 460)
 team = 1
 
 [node name="UI" type="CanvasLayer" parent="."]
@@ -38,3 +53,6 @@ theme_override_fonts/font = SubResource("SystemFont_result")
 horizontal_alignment = 1
 vertical_alignment = 1
 visible = false
+
+[node name="DragBox" type="Node2D" parent="."]
+script = ExtResource("3_dragbox")

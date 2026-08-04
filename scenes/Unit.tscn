@@ -6,6 +6,7 @@
 size = Vector2(40, 40)
 
 [node name="Unit" type="Area2D"]
+input_pickable = false
 script = ExtResource("1_unit")
 
 [node name="Body" type="Polygon2D" parent="."]
