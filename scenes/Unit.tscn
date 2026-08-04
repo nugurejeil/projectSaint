@@ -14,3 +14,13 @@ polygon = PackedVector2Array(-20, -20, 20, -20, 20, 20, -20, 20)
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("RectangleShape2D_unit")
+
+[node name="HPBarBg" type="Polygon2D" parent="."]
+position = Vector2(-20, -30)
+color = Color(0.1, 0.1, 0.1, 1)
+polygon = PackedVector2Array(0, 0, 40, 0, 40, 4, 0, 4)
+
+[node name="HPBarFill" type="Polygon2D" parent="."]
+position = Vector2(-20, -30)
+color = Color(0.25, 0.85, 0.35, 1)
+polygon = PackedVector2Array(0, 0, 40, 0, 40, 4, 0, 4)
