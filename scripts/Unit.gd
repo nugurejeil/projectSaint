@@ -9,19 +9,27 @@ signal died(unit: Unit)
 @export var attack_range: float = 160.0
 @export var attack_damage: float = 20.0
 @export var attack_cooldown: float = 1.0
+@export var pushable: bool = true
+@export var ai_enabled: bool = true
 
 var health: float
+var squad_id: int = 0
 var _target_pos: Vector2 = Vector2.ZERO
 var _has_target: bool = false
 var _selected: bool = false
 var _cooldown_left: float = 0.0
 var _flash_time_left: float = 0.0
+var _attack_moving: bool = false
+var _attack_move_target: Vector2 = Vector2.ZERO
 
 const FLASH_DURATION: float = 0.15
 const FLASH_COLOR := Color(3.0, 3.0, 3.0, 1.0)
+const SEPARATION_RADIUS: float = 42.0
+const SEPARATION_SPEED: float = 80.0
 
 @onready var _body: Polygon2D = $Body
 @onready var _hp_fill: Polygon2D = $HPBarFill
+@onready var _squad_label: Label = $SquadLabel
 
 const TEAM_PLAYER := 0
 const TEAM_ENEMY := 1
@@ -35,13 +43,38 @@ func _ready() -> void:
 	health = max_health
 	add_to_group("units")
 	_refresh_color()
+	_refresh_squad_label()
 
 
 func _physics_process(delta: float) -> void:
 	_update_ai()
 	_update_combat(delta)
 	_update_movement(delta)
+	_apply_separation(delta)
 	_update_flash(delta)
+
+
+func _apply_separation(delta: float) -> void:
+	if not pushable:
+		return
+	var push := Vector2.ZERO
+	for u in get_tree().get_nodes_in_group("units"):
+		if u == self:
+			continue
+		var other := u as Unit
+		if other.is_queued_for_deletion():
+			continue
+		var diff := global_position - other.global_position
+		var dist := diff.length()
+		if dist == 0.0:
+			push += Vector2(randf() - 0.5, randf() - 0.5)
+			continue
+		if dist < SEPARATION_RADIUS:
+			var overlap := SEPARATION_RADIUS - dist
+			push += diff / dist * overlap
+	if push == Vector2.ZERO:
+		return
+	global_position += push.limit_length(SEPARATION_SPEED * delta)
 
 
 func _update_flash(delta: float) -> void:
@@ -56,15 +89,24 @@ func _update_flash(delta: float) -> void:
 
 
 func _update_ai() -> void:
-	if team != TEAM_ENEMY:
-		return
-	var target := _find_nearest_enemy()
-	if target == null:
-		return
-	if global_position.distance_to(target.global_position) > attack_range:
-		move_to(target.global_position)
-	else:
-		_has_target = false
+	if team == TEAM_ENEMY:
+		if not ai_enabled:
+			return
+		var target := _find_nearest_enemy()
+		if target == null:
+			return
+		if global_position.distance_to(target.global_position) > attack_range:
+			move_to(target.global_position)
+		else:
+			_has_target = false
+	elif _attack_moving:
+		var enemy := _find_nearest_enemy(attack_range)
+		if enemy != null:
+			_has_target = false
+		elif global_position.distance_to(_attack_move_target) > 4.0:
+			move_to(_attack_move_target)
+		else:
+			_attack_moving = false
 
 
 func _update_combat(delta: float) -> void:
@@ -120,6 +162,31 @@ func take_damage(amount: float) -> void:
 func move_to(pos: Vector2) -> void:
 	_target_pos = pos
 	_has_target = true
+
+
+func attack_move_to(pos: Vector2) -> void:
+	_attack_moving = true
+	_attack_move_target = pos
+	move_to(pos)
+
+
+func stop_actions() -> void:
+	_has_target = false
+	_attack_moving = false
+
+
+func set_squad(id: int) -> void:
+	squad_id = id
+	if is_node_ready():
+		_refresh_squad_label()
+
+
+func _refresh_squad_label() -> void:
+	if squad_id > 0:
+		_squad_label.text = str(squad_id)
+		_squad_label.visible = true
+	else:
+		_squad_label.visible = false
 
 
 func set_selected(v: bool) -> void:

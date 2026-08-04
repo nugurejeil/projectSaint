@@ -4,9 +4,14 @@ var _selected_units: Array[Unit] = []
 var _game_over: bool = false
 var _dragging: bool = false
 var _drag_start: Vector2 = Vector2.ZERO
+var _squads: Dictionary = {}
+var _attack_move_armed: bool = false
+
+const SQUAD_KEYS := {KEY_1: 1, KEY_2: 2, KEY_3: 3}
 
 @onready var _units: Node2D = $Units
 @onready var _result_label: Label = $UI/ResultLabel
+@onready var _selection_label: Label = $UI/SelectionCountLabel
 @onready var _drag_box: Node2D = $DragBox
 
 const CLICK_DRAG_THRESHOLD: float = 5.0
@@ -23,16 +28,88 @@ func _ready() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if _game_over:
 		return
+	if event is InputEventKey and event.pressed and not event.echo:
+		_handle_key(event)
+		return
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_LEFT:
 			if event.pressed:
+				if _attack_move_armed:
+					_issue_movement(get_global_mouse_position(), true)
+					_attack_move_armed = false
+					return
 				_begin_drag(get_global_mouse_position())
 			else:
-				_end_drag(get_global_mouse_position())
+				_end_drag(get_global_mouse_position(), event.shift_pressed)
 		elif event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
-			_issue_move_command(get_global_mouse_position())
+			if _attack_move_armed:
+				_attack_move_armed = false
+				print("[Main] attack-move canceled")
+				return
+			_issue_movement(get_global_mouse_position(), false)
 	elif event is InputEventMouseMotion and _dragging:
 		_drag_box.show_rect(_make_rect(_drag_start, get_global_mouse_position()))
+
+
+func _handle_key(event: InputEventKey) -> void:
+	if SQUAD_KEYS.has(event.keycode):
+		var num: int = SQUAD_KEYS[event.keycode]
+		if event.ctrl_pressed or event.meta_pressed:
+			_assign_squad(num)
+		else:
+			_select_squad(num)
+	elif event.keycode == KEY_S:
+		_stop_selected()
+	elif event.keycode == KEY_A:
+		_arm_attack_move()
+	elif event.keycode == KEY_ESCAPE and _attack_move_armed:
+		_attack_move_armed = false
+		print("[Main] attack-move canceled")
+
+
+func _assign_squad(num: int) -> void:
+	var alive: Array[Unit] = []
+	for u in _selected_units:
+		if is_instance_valid(u):
+			alive.append(u)
+	for u in get_tree().get_nodes_in_group("units"):
+		var unit := u as Unit
+		if unit.squad_id == num and not alive.has(unit):
+			unit.set_squad(0)
+	for u in alive:
+		u.set_squad(num)
+	_squads[num] = alive
+	print("[Main] squad %d assigned: %d units" % [num, alive.size()])
+
+
+func _select_squad(num: int) -> void:
+	if not _squads.has(num):
+		return
+	var alive: Array[Unit] = []
+	for u in _squads[num]:
+		if is_instance_valid(u) and not (u as Node).is_queued_for_deletion():
+			alive.append(u)
+	_squads[num] = alive
+	print("[Main] select squad %d: %d units" % [num, alive.size()])
+	_set_selection(alive)
+
+
+func _stop_selected() -> void:
+	if _selected_units.is_empty():
+		return
+	var count := 0
+	for u in _selected_units:
+		if is_instance_valid(u):
+			u.stop_actions()
+			count += 1
+	print("[Main] stop %d units" % count)
+
+
+func _arm_attack_move() -> void:
+	if _selected_units.is_empty():
+		return
+	_attack_move_armed = true
+	print("[Main] attack-move armed (%d units)" % _selected_units.size())
 
 
 func _begin_drag(pos: Vector2) -> void:
@@ -41,15 +118,15 @@ func _begin_drag(pos: Vector2) -> void:
 	_drag_box.show_rect(Rect2(pos, Vector2.ZERO))
 
 
-func _end_drag(pos: Vector2) -> void:
+func _end_drag(pos: Vector2, additive: bool) -> void:
 	if not _dragging:
 		return
 	_dragging = false
 	_drag_box.hide_rect()
 	if (pos - _drag_start).length() < CLICK_DRAG_THRESHOLD:
-		_handle_click(pos)
+		_handle_click(pos, additive)
 	else:
-		_select_units_in_rect(_make_rect(_drag_start, pos))
+		_select_units_in_rect(_make_rect(_drag_start, pos), additive)
 
 
 func _make_rect(a: Vector2, b: Vector2) -> Rect2:
@@ -58,12 +135,15 @@ func _make_rect(a: Vector2, b: Vector2) -> Rect2:
 	return Rect2(top_left, size)
 
 
-func _handle_click(pos: Vector2) -> void:
+func _handle_click(pos: Vector2, additive: bool) -> void:
 	var clicked_unit := _unit_at_position(pos)
 	if clicked_unit != null and clicked_unit.team == Unit.TEAM_PLAYER:
-		print("[Main] click selected %s" % clicked_unit.name)
-		_set_selection([clicked_unit])
-	else:
+		if additive:
+			_toggle_in_selection(clicked_unit)
+		else:
+			print("[Main] click selected %s" % clicked_unit.name)
+			_set_selection([clicked_unit])
+	elif not additive:
 		_clear_selection()
 
 
@@ -76,7 +156,7 @@ func _unit_at_position(pos: Vector2) -> Unit:
 	return null
 
 
-func _select_units_in_rect(rect: Rect2) -> void:
+func _select_units_in_rect(rect: Rect2, additive: bool) -> void:
 	var found: Array[Unit] = []
 	for u in get_tree().get_nodes_in_group("units"):
 		var unit := u as Unit
@@ -84,17 +164,43 @@ func _select_units_in_rect(rect: Rect2) -> void:
 			continue
 		if rect.has_point(unit.global_position):
 			found.append(unit)
-	print("[Main] box selected %d units in %s" % [found.size(), rect])
-	_set_selection(found)
+	if additive:
+		var merged: Array[Unit] = []
+		for u in _selected_units:
+			if is_instance_valid(u):
+				merged.append(u)
+		for u in found:
+			if not merged.has(u):
+				merged.append(u)
+		print("[Main] box added %d units (total %d) in %s" % [found.size(), merged.size(), rect])
+		_set_selection(merged)
+	else:
+		print("[Main] box selected %d units in %s" % [found.size(), rect])
+		_set_selection(found)
+
+
+func _toggle_in_selection(unit: Unit) -> void:
+	var current: Array[Unit] = []
+	for u in _selected_units:
+		if is_instance_valid(u):
+			current.append(u)
+	if current.has(unit):
+		current.erase(unit)
+		print("[Main] shift+click removed %s (now %d)" % [unit.name, current.size()])
+	else:
+		current.append(unit)
+		print("[Main] shift+click added %s (now %d)" % [unit.name, current.size()])
+	_set_selection(current)
 
 
 func _set_selection(units: Array[Unit]) -> void:
 	for u in _selected_units:
 		if is_instance_valid(u):
 			u.set_selected(false)
-	_selected_units = units
+	_selected_units = units.duplicate()
 	for u in _selected_units:
 		u.set_selected(true)
+	_refresh_selection_ui()
 
 
 func _clear_selection() -> void:
@@ -105,16 +211,24 @@ func _clear_selection() -> void:
 		if is_instance_valid(u):
 			u.set_selected(false)
 	_selected_units.clear()
+	_refresh_selection_ui()
 
 
-func _issue_move_command(target: Vector2) -> void:
+func _refresh_selection_ui() -> void:
+	var count := _selected_units.size()
+	_selection_label.text = "선택: %d" % count
+	_selection_label.visible = count > 0
+
+
+func _issue_movement(target: Vector2, attack_move: bool) -> void:
 	if _selected_units.is_empty():
 		return
 	_spawn_move_marker(target)
+	var mode := "attack-move" if attack_move else "move"
 	var count := _selected_units.size()
 	if count == 1:
-		_selected_units[0].move_to(target)
-		print("[Main] move %s -> %s" % [_selected_units[0].name, target])
+		_apply_move(_selected_units[0], target, attack_move)
+		print("[Main] %s %s -> %s" % [mode, _selected_units[0].name, target])
 		return
 	var cols := ceili(sqrt(float(count)))
 	var rows := ceili(float(count) / float(cols))
@@ -123,8 +237,15 @@ func _issue_move_command(target: Vector2) -> void:
 		var col := i % cols
 		var row := i / cols
 		var offset := (Vector2(float(col), float(row)) - center_offset) * MULTI_MOVE_SPACING
-		_selected_units[i].move_to(target + offset)
-	print("[Main] move %d units -> %s (grid %dx%d)" % [count, target, cols, rows])
+		_apply_move(_selected_units[i], target + offset, attack_move)
+	print("[Main] %s %d units -> %s (grid %dx%d)" % [mode, count, target, cols, rows])
+
+
+func _apply_move(unit: Unit, pos: Vector2, attack_move: bool) -> void:
+	if attack_move:
+		unit.attack_move_to(pos)
+	else:
+		unit.move_to(pos)
 
 
 func _spawn_move_marker(pos: Vector2) -> void:
@@ -135,7 +256,12 @@ func _spawn_move_marker(pos: Vector2) -> void:
 
 func _on_unit_died(unit: Unit) -> void:
 	print("[Main] on_unit_died: %s" % unit.name)
-	_selected_units.erase(unit)
+	if _selected_units.has(unit):
+		_selected_units.erase(unit)
+		_refresh_selection_ui()
+	for num in _squads.keys():
+		if _squads[num].has(unit):
+			_squads[num].erase(unit)
 	_check_end_state()
 
 
