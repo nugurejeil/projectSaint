@@ -2,31 +2,105 @@ extends Node2D
 
 var _selected_units: Array[Unit] = []
 var _game_over: bool = false
+var _last_won: bool = false
+var _stage_index: int = 0
 var _dragging: bool = false
 var _drag_start: Vector2 = Vector2.ZERO
 var _squads: Dictionary = {}
-var _attack_move_armed: bool = false
+var _attack_armed: bool = false
+var _countdown_left: float = 0.0
 
 const SQUAD_KEYS := {KEY_1: 1, KEY_2: 2, KEY_3: 3}
 
 @onready var _units: Node2D = $Units
 @onready var _result_label: Label = $UI/ResultLabel
 @onready var _selection_label: Label = $UI/SelectionCountLabel
+@onready var _countdown_label: Label = $UI/CountdownLabel
 @onready var _drag_box: Node2D = $DragBox
 
 const CLICK_DRAG_THRESHOLD: float = 5.0
 const MULTI_MOVE_SPACING: float = 50.0
+const COUNTDOWN_SECS: float = 3.0
 const MoveMarkerScript := preload("res://scripts/MoveMarker.gd")
+const UnitScene := preload("res://scenes/Unit.tscn")
 
 
 func _ready() -> void:
-	for u in _units.get_children():
-		if u is Unit:
-			(u as Unit).died.connect(_on_unit_died)
+	_load_stage(0)
+
+
+func _load_stage(idx: int) -> void:
+	_stage_index = idx
+	var stage: Dictionary = Stages.STAGES[idx]
+	print("[Main] load stage %d: %s" % [idx + 1, stage["name"]])
+	_clear_battle()
+	_spawn_stage_units(stage)
+	_start_countdown()
+
+
+func _clear_battle() -> void:
+	for u in get_tree().get_nodes_in_group("units"):
+		u.queue_free()
+	for p in get_tree().get_nodes_in_group("projectiles"):
+		p.queue_free()
+	_selected_units.clear()
+	_squads.clear()
+	_attack_armed = false
+	_dragging = false
+	_drag_box.hide_rect()
+	_game_over = false
+	_result_label.visible = false
+	_refresh_selection_ui()
+
+
+func _spawn_stage_units(stage: Dictionary) -> void:
+	var counters: Dictionary = {}
+	for spec in stage["units"]:
+		var u: Unit = UnitScene.instantiate()
+		u.team = spec["team"]
+		u.unit_type = Unit.UnitType.RANGED if spec["type"] == "ranged" else Unit.UnitType.MELEE
+		u.position = spec["pos"]
+		var key: String = "%d_%s" % [spec["team"], spec["type"]]
+		counters[key] = counters.get(key, 0) + 1
+		var prefix: String = "P" if spec["team"] == Unit.TEAM_PLAYER else "E"
+		var type_ch: String = "R" if spec["type"] == "ranged" else "M"
+		u.name = "%s_%s_%d" % [prefix, type_ch, counters[key]]
+		u.active = false
+		u.died.connect(_on_unit_died)
+		_units.add_child(u)
+
+
+func _start_countdown() -> void:
+	_countdown_left = COUNTDOWN_SECS
+	_countdown_label.text = str(int(ceil(COUNTDOWN_SECS)))
+	_countdown_label.visible = true
+	print("[Main] countdown start: %.1fs" % COUNTDOWN_SECS)
+
+
+func _process(delta: float) -> void:
+	if _countdown_left <= 0.0:
+		return
+	_countdown_left -= delta
+	if _countdown_left <= 0.0:
+		_countdown_label.visible = false
+		for u in _units.get_children():
+			if u is Unit:
+				(u as Unit).active = true
+		print("[Main] countdown done, battle start")
+	else:
+		_countdown_label.text = str(int(ceil(_countdown_left)))
 
 
 func _unhandled_input(event: InputEvent) -> void:
 	if _game_over:
+		if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_R:
+			var next_idx := _stage_index
+			if _last_won:
+				next_idx = (_stage_index + 1) % Stages.STAGES.size()
+			print("[Main] R restart: stage %d -> %d (won=%s)" % [_stage_index + 1, next_idx + 1, _last_won])
+			_load_stage(next_idx)
+		return
+	if _countdown_left > 0.0:
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		_handle_key(event)
@@ -34,17 +108,17 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_LEFT:
 			if event.pressed:
-				if _attack_move_armed:
+				if _attack_armed:
 					_issue_movement(get_global_mouse_position(), true)
-					_attack_move_armed = false
+					_attack_armed = false
 					return
 				_begin_drag(get_global_mouse_position())
 			else:
 				_end_drag(get_global_mouse_position(), event.shift_pressed)
 		elif event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
-			if _attack_move_armed:
-				_attack_move_armed = false
-				print("[Main] attack-move canceled")
+			if _attack_armed:
+				_attack_armed = false
+				print("[Main] attack armed canceled (RMB)")
 				return
 			_issue_movement(get_global_mouse_position(), false)
 	elif event is InputEventMouseMotion and _dragging:
@@ -62,9 +136,9 @@ func _handle_key(event: InputEventKey) -> void:
 		_stop_selected()
 	elif event.keycode == KEY_A:
 		_arm_attack_move()
-	elif event.keycode == KEY_ESCAPE and _attack_move_armed:
-		_attack_move_armed = false
-		print("[Main] attack-move canceled")
+	elif event.keycode == KEY_ESCAPE and _attack_armed:
+		_attack_armed = false
+		print("[Main] attack armed canceled")
 
 
 func _assign_squad(num: int) -> void:
@@ -108,8 +182,8 @@ func _stop_selected() -> void:
 func _arm_attack_move() -> void:
 	if _selected_units.is_empty():
 		return
-	_attack_move_armed = true
-	print("[Main] attack-move armed (%d units)" % _selected_units.size())
+	_attack_armed = true
+	print("[Main] attack armed (%d units)" % _selected_units.size())
 
 
 func _begin_drag(pos: Vector2) -> void:
@@ -282,11 +356,19 @@ func _check_end_state() -> void:
 	if players_alive > 0 and enemies_alive > 0:
 		return
 	_game_over = true
+	var stage_num := _stage_index + 1
+	var last_stage := _stage_index + 1 >= Stages.STAGES.size()
 	if players_alive == 0 and enemies_alive == 0:
-		_result_label.text = "무승부"
+		_last_won = false
+		_result_label.text = "무승부\n[R] 재도전"
 	elif enemies_alive == 0:
-		_result_label.text = "승리"
+		_last_won = true
+		if last_stage:
+			_result_label.text = "완주!\n[R] 처음부터"
+		else:
+			_result_label.text = "스테이지 %d 클리어!\n[R] 다음" % stage_num
 	else:
-		_result_label.text = "패배"
+		_last_won = false
+		_result_label.text = "패배\n[R] 재도전"
 	_result_label.visible = true
-	print("[Main] GAME OVER -> %s (label visible=%s, text=%s)" % [_result_label.text, _result_label.visible, _result_label.text])
+	print("[Main] GAME OVER stage=%d won=%s -> %s" % [stage_num, _last_won, _result_label.text])

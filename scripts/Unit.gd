@@ -3,6 +3,9 @@ extends Area2D
 
 signal died(unit: Unit)
 
+enum UnitType { MELEE, RANGED }
+
+@export var unit_type: UnitType = UnitType.MELEE
 @export var max_health: float = 100.0
 @export var move_speed: float = 220.0
 @export var team: int = 0
@@ -14,6 +17,7 @@ signal died(unit: Unit)
 
 var health: float
 var squad_id: int = 0
+var active: bool = true
 var _target_pos: Vector2 = Vector2.ZERO
 var _has_target: bool = false
 var _selected: bool = false
@@ -21,11 +25,21 @@ var _cooldown_left: float = 0.0
 var _flash_time_left: float = 0.0
 var _attack_moving: bool = false
 var _attack_move_target: Vector2 = Vector2.ZERO
+var _auto_engaging: bool = false
 
 const FLASH_DURATION: float = 0.15
 const FLASH_COLOR := Color(3.0, 3.0, 3.0, 1.0)
 const SEPARATION_RADIUS: float = 42.0
 const SEPARATION_SPEED: float = 80.0
+const CIRCLE_SIDES := 20
+const CIRCLE_RADIUS := 18.0
+const RANGED_KITE_MIN_DIST: float = 140.0
+const RANGED_KITE_BUFFER: float = 40.0
+const PLAYER_AUTO_ENGAGE_RADIUS: float = 220.0
+const BATTLEFIELD_MIN := Vector2(60.0, 60.0)
+const BATTLEFIELD_MAX := Vector2(1220.0, 660.0)
+
+const ProjectileScript := preload("res://scripts/Projectile.gd")
 
 @onready var _body: Polygon2D = $Body
 @onready var _hp_fill: Polygon2D = $HPBarFill
@@ -40,13 +54,35 @@ const COLOR_ENEMY := Color(1.00, 0.35, 0.30)
 
 
 func _ready() -> void:
+	_apply_type()
 	health = max_health
 	add_to_group("units")
 	_refresh_color()
 	_refresh_squad_label()
 
 
+func _apply_type() -> void:
+	var s := UnitStats.RANGED if unit_type == UnitType.RANGED else UnitStats.MELEE
+	max_health = s["health"]
+	move_speed = s["speed"]
+	attack_range = s["range"]
+	attack_damage = s["damage"]
+	attack_cooldown = s["cooldown"]
+	if unit_type == UnitType.RANGED:
+		_body.polygon = _make_circle_polygon(CIRCLE_RADIUS, CIRCLE_SIDES)
+
+
+func _make_circle_polygon(radius: float, sides: int) -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	for i in range(sides):
+		var a := TAU * float(i) / float(sides)
+		pts.append(Vector2(cos(a), sin(a)) * radius)
+	return pts
+
+
 func _physics_process(delta: float) -> void:
+	if not active:
+		return
 	_update_ai()
 	_update_combat(delta)
 	_update_movement(delta)
@@ -95,27 +131,71 @@ func _update_ai() -> void:
 		var target := _find_nearest_enemy()
 		if target == null:
 			return
-		if global_position.distance_to(target.global_position) > attack_range:
-			move_to(target.global_position)
+		var dist := global_position.distance_to(target.global_position)
+		if unit_type == UnitType.RANGED and dist < RANGED_KITE_MIN_DIST:
+			var away := global_position - target.global_position
+			if away.length() < 1.0:
+				away = Vector2.RIGHT.rotated(randf() * TAU)
+			var retreat_pos := target.global_position + away.normalized() * (RANGED_KITE_MIN_DIST + RANGED_KITE_BUFFER)
+			retreat_pos = retreat_pos.clamp(BATTLEFIELD_MIN, BATTLEFIELD_MAX)
+			_set_move_target(retreat_pos)
+		elif dist > attack_range:
+			_set_move_target(target.global_position)
 		else:
 			_has_target = false
-	elif _attack_moving:
+		return
+	if _attack_moving:
 		var enemy := _find_nearest_enemy(attack_range)
 		if enemy != null:
 			_has_target = false
 		elif global_position.distance_to(_attack_move_target) > 4.0:
-			move_to(_attack_move_target)
+			_set_move_target(_attack_move_target)
 		else:
 			_attack_moving = false
+		return
+	if _has_target and not _auto_engaging:
+		return
+	var seen := _find_nearest_enemy(PLAYER_AUTO_ENGAGE_RADIUS)
+	if seen == null:
+		if _auto_engaging:
+			_auto_engaging = false
+			_has_target = false
+		return
+	if global_position.distance_to(seen.global_position) > attack_range:
+		_auto_engaging = true
+		_set_move_target(seen.global_position)
+	else:
+		_auto_engaging = false
+		_has_target = false
 
 
 func _update_combat(delta: float) -> void:
 	if _cooldown_left > 0.0:
 		_cooldown_left -= delta
-	var target := _find_nearest_enemy(attack_range)
+	var target := _pick_combat_target()
 	if target != null and _cooldown_left <= 0.0:
-		target.take_damage(attack_damage)
+		if unit_type == UnitType.RANGED:
+			_spawn_projectile(target)
+		else:
+			target.take_damage(attack_damage)
 		_cooldown_left = attack_cooldown
+
+
+func _pick_combat_target() -> Unit:
+	if team == TEAM_ENEMY:
+		return _find_nearest_enemy(attack_range)
+	if _has_target and not _attack_moving and not _auto_engaging:
+		return null
+	return _find_nearest_enemy(attack_range)
+
+
+func _spawn_projectile(target: Unit) -> void:
+	var proj := ProjectileScript.new()
+	proj.target = target
+	proj.damage = attack_damage
+	proj.color = Color(0.7, 0.9, 1.0) if team == TEAM_PLAYER else Color(1.0, 0.6, 0.4)
+	proj.global_position = global_position
+	get_tree().current_scene.add_child(proj)
 
 
 func _update_movement(delta: float) -> void:
@@ -159,20 +239,28 @@ func take_damage(amount: float) -> void:
 		died.emit(self)
 
 
-func move_to(pos: Vector2) -> void:
+func _set_move_target(pos: Vector2) -> void:
 	_target_pos = pos
 	_has_target = true
 
 
+func move_to(pos: Vector2) -> void:
+	_attack_moving = false
+	_auto_engaging = false
+	_set_move_target(pos)
+
+
 func attack_move_to(pos: Vector2) -> void:
 	_attack_moving = true
+	_auto_engaging = false
 	_attack_move_target = pos
-	move_to(pos)
+	_set_move_target(pos)
 
 
 func stop_actions() -> void:
 	_has_target = false
 	_attack_moving = false
+	_auto_engaging = false
 
 
 func set_squad(id: int) -> void:

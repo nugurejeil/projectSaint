@@ -1,7 +1,6 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scripts/Main.gd" id="1_main"]
-[ext_resource type="PackedScene" path="res://scenes/Unit.tscn" id="2_unit"]
 [ext_resource type="Script" path="res://scripts/DragBox.gd" id="3_dragbox"]
 
 [sub_resource type="SystemFont" id="SystemFont_result"]
@@ -19,46 +18,6 @@ polygon = PackedVector2Array(40, 40, 1240, 40, 1240, 680, 40, 680)
 
 [node name="Units" type="Node2D" parent="."]
 
-[node name="PlayerUnit1" parent="Units" instance=ExtResource("2_unit")]
-position = Vector2(400, 160)
-
-[node name="PlayerUnit2" parent="Units" instance=ExtResource("2_unit")]
-position = Vector2(400, 260)
-
-[node name="PlayerUnit3" parent="Units" instance=ExtResource("2_unit")]
-position = Vector2(400, 360)
-
-[node name="PlayerUnit4" parent="Units" instance=ExtResource("2_unit")]
-position = Vector2(400, 460)
-
-[node name="PlayerUnit5" parent="Units" instance=ExtResource("2_unit")]
-position = Vector2(400, 560)
-
-[node name="EnemyUnit1" parent="Units" instance=ExtResource("2_unit")]
-position = Vector2(880, 160)
-team = 1
-ai_enabled = false
-
-[node name="EnemyUnit2" parent="Units" instance=ExtResource("2_unit")]
-position = Vector2(880, 260)
-team = 1
-ai_enabled = false
-
-[node name="EnemyUnit3" parent="Units" instance=ExtResource("2_unit")]
-position = Vector2(880, 360)
-team = 1
-ai_enabled = false
-
-[node name="EnemyUnit4" parent="Units" instance=ExtResource("2_unit")]
-position = Vector2(880, 460)
-team = 1
-ai_enabled = false
-
-[node name="EnemyUnit5" parent="Units" instance=ExtResource("2_unit")]
-position = Vector2(880, 560)
-team = 1
-ai_enabled = false
-
 [node name="UI" type="CanvasLayer" parent="."]
 
 [node name="ResultLabel" type="Label" parent="UI"]
@@ -72,6 +31,20 @@ theme_override_font_sizes/font_size = 128
 theme_override_fonts/font = SubResource("SystemFont_result")
 horizontal_alignment = 1
 vertical_alignment = 1
+visible = false
+
+[node name="CountdownLabel" type="Label" parent="UI"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 12
+theme_override_font_sizes/font_size = 200
+theme_override_fonts/font = SubResource("SystemFont_result")
+horizontal_alignment = 1
+vertical_alignment = 1
+text = "3"
 visible = false
 
 [node name="SelectionCountLabel" type="Label" parent="UI"]
