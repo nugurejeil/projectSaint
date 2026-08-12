@@ -26,6 +26,7 @@ var _flash_time_left: float = 0.0
 var _attack_moving: bool = false
 var _attack_move_target: Vector2 = Vector2.ZERO
 var _auto_engaging: bool = false
+var battlefield_rect: Rect2 = Rect2(40, 40, 1200, 640)
 
 const FLASH_DURATION: float = 0.15
 const FLASH_COLOR := Color(3.0, 3.0, 3.0, 1.0)
@@ -36,8 +37,7 @@ const CIRCLE_RADIUS := 18.0
 const RANGED_KITE_MIN_DIST: float = 140.0
 const RANGED_KITE_BUFFER: float = 40.0
 const PLAYER_AUTO_ENGAGE_RADIUS: float = 220.0
-const BATTLEFIELD_MIN := Vector2(60.0, 60.0)
-const BATTLEFIELD_MAX := Vector2(1220.0, 660.0)
+const UNIT_EDGE_INSET: float = 20.0
 
 const ProjectileScript := preload("res://scripts/Projectile.gd")
 
@@ -62,7 +62,11 @@ func _ready() -> void:
 
 
 func _apply_type() -> void:
-	var s := UnitStats.RANGED if unit_type == UnitType.RANGED else UnitStats.MELEE
+	var s: Dictionary
+	if team == TEAM_PLAYER:
+		s = UnitStats.PLAYER_RANGED if unit_type == UnitType.RANGED else UnitStats.PLAYER_MELEE
+	else:
+		s = UnitStats.RANGED if unit_type == UnitType.RANGED else UnitStats.MELEE
 	max_health = s["health"]
 	move_speed = s["speed"]
 	attack_range = s["range"]
@@ -137,7 +141,8 @@ func _update_ai() -> void:
 			if away.length() < 1.0:
 				away = Vector2.RIGHT.rotated(randf() * TAU)
 			var retreat_pos := target.global_position + away.normalized() * (RANGED_KITE_MIN_DIST + RANGED_KITE_BUFFER)
-			retreat_pos = retreat_pos.clamp(BATTLEFIELD_MIN, BATTLEFIELD_MAX)
+			var inset := Vector2(UNIT_EDGE_INSET, UNIT_EDGE_INSET)
+			retreat_pos = retreat_pos.clamp(battlefield_rect.position + inset, battlefield_rect.end - inset)
 			_set_move_target(retreat_pos)
 		elif dist > attack_range:
 			_set_move_target(target.global_position)

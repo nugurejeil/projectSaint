@@ -20,18 +20,58 @@ polygon = PackedVector2Array(40, 40, 1240, 40, 1240, 680, 40, 680)
 
 [node name="UI" type="CanvasLayer" parent="."]
 
-[node name="ResultLabel" type="Label" parent="UI"]
+[node name="ResultPanel" type="Control" parent="UI"]
 anchor_right = 1.0
 anchor_bottom = 1.0
-mouse_filter = 2
+visible = false
+
+[node name="Dim" type="ColorRect" parent="UI/ResultPanel"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0, 0, 0, 0.55)
+
+[node name="VBox" type="VBoxContainer" parent="UI/ResultPanel"]
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -260.0
+offset_top = -200.0
+offset_right = 260.0
+offset_bottom = 200.0
+alignment = 1
+theme_override_constants/separation = 22
+
+[node name="ResultTitle" type="Label" parent="UI/ResultPanel/VBox"]
 theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
-theme_override_constants/outline_size = 12
-theme_override_font_sizes/font_size = 128
+theme_override_constants/outline_size = 8
+theme_override_font_sizes/font_size = 84
 theme_override_fonts/font = SubResource("SystemFont_result")
+text = "결과"
 horizontal_alignment = 1
-vertical_alignment = 1
-visible = false
+
+[node name="ResultStats" type="Label" parent="UI/ResultPanel/VBox"]
+theme_override_colors/font_color = Color(0.9, 0.95, 1, 1)
+theme_override_font_sizes/font_size = 26
+theme_override_fonts/font = SubResource("SystemFont_result")
+text = ""
+horizontal_alignment = 1
+
+[node name="Spacer" type="Control" parent="UI/ResultPanel/VBox"]
+custom_minimum_size = Vector2(0, 20)
+
+[node name="PrimaryButton" type="Button" parent="UI/ResultPanel/VBox"]
+custom_minimum_size = Vector2(0, 56)
+theme_override_font_sizes/font_size = 26
+theme_override_fonts/font = SubResource("SystemFont_result")
+text = "다음"
+
+[node name="SecondaryButton" type="Button" parent="UI/ResultPanel/VBox"]
+custom_minimum_size = Vector2(0, 48)
+theme_override_font_sizes/font_size = 22
+theme_override_fonts/font = SubResource("SystemFont_result")
+text = "타이틀로"
 
 [node name="CountdownLabel" type="Label" parent="UI"]
 anchor_right = 1.0

@@ -16,3 +16,19 @@ const RANGED := {
 	"damage": 18.0,
 	"cooldown": 1.4,
 }
+
+const PLAYER_MELEE := {
+	"health": 180.0,
+	"speed": 280.0,
+	"range": 80.0,
+	"damage": 32.0,
+	"cooldown": 0.9,
+}
+
+const PLAYER_RANGED := {
+	"health": 95.0,
+	"speed": 200.0,
+	"range": 300.0,
+	"damage": 24.0,
+	"cooldown": 1.2,
+}

@@ -9,11 +9,18 @@ var _drag_start: Vector2 = Vector2.ZERO
 var _squads: Dictionary = {}
 var _attack_armed: bool = false
 var _countdown_left: float = 0.0
+var _initial_enemy_count: int = 0
+var _initial_player_count: int = 0
 
 const SQUAD_KEYS := {KEY_1: 1, KEY_2: 2, KEY_3: 3}
 
 @onready var _units: Node2D = $Units
-@onready var _result_label: Label = $UI/ResultLabel
+@onready var _battlefield: Polygon2D = $Battlefield
+@onready var _result_panel: Control = $UI/ResultPanel
+@onready var _result_title: Label = $UI/ResultPanel/VBox/ResultTitle
+@onready var _result_stats: Label = $UI/ResultPanel/VBox/ResultStats
+@onready var _result_primary_button: Button = $UI/ResultPanel/VBox/PrimaryButton
+@onready var _result_secondary_button: Button = $UI/ResultPanel/VBox/SecondaryButton
 @onready var _selection_label: Label = $UI/SelectionCountLabel
 @onready var _countdown_label: Label = $UI/CountdownLabel
 @onready var _drag_box: Node2D = $DragBox
@@ -26,7 +33,9 @@ const UnitScene := preload("res://scenes/Unit.tscn")
 
 
 func _ready() -> void:
-	_load_stage(0)
+	_result_primary_button.pressed.connect(_on_primary_result_pressed)
+	_result_secondary_button.pressed.connect(_on_secondary_result_pressed)
+	_load_stage(GameState.current_stage)
 
 
 func _load_stage(idx: int) -> void:
@@ -34,8 +43,20 @@ func _load_stage(idx: int) -> void:
 	var stage: Dictionary = Stages.STAGES[idx]
 	print("[Main] load stage %d: %s" % [idx + 1, stage["name"]])
 	_clear_battle()
+	_apply_battlefield(stage["battlefield"])
 	_spawn_stage_units(stage)
 	_start_countdown()
+
+
+func _apply_battlefield(rect: Rect2) -> void:
+	var tl := rect.position
+	var br := rect.end
+	_battlefield.polygon = PackedVector2Array([
+		tl,
+		Vector2(br.x, tl.y),
+		br,
+		Vector2(tl.x, br.y),
+	])
 
 
 func _clear_battle() -> void:
@@ -49,17 +70,21 @@ func _clear_battle() -> void:
 	_dragging = false
 	_drag_box.hide_rect()
 	_game_over = false
-	_result_label.visible = false
+	_result_panel.visible = false
 	_refresh_selection_ui()
 
 
 func _spawn_stage_units(stage: Dictionary) -> void:
 	var counters: Dictionary = {}
+	var rect: Rect2 = stage["battlefield"]
+	_initial_player_count = 0
+	_initial_enemy_count = 0
 	for spec in stage["units"]:
 		var u: Unit = UnitScene.instantiate()
 		u.team = spec["team"]
 		u.unit_type = Unit.UnitType.RANGED if spec["type"] == "ranged" else Unit.UnitType.MELEE
 		u.position = spec["pos"]
+		u.battlefield_rect = rect
 		var key: String = "%d_%s" % [spec["team"], spec["type"]]
 		counters[key] = counters.get(key, 0) + 1
 		var prefix: String = "P" if spec["team"] == Unit.TEAM_PLAYER else "E"
@@ -68,6 +93,10 @@ func _spawn_stage_units(stage: Dictionary) -> void:
 		u.active = false
 		u.died.connect(_on_unit_died)
 		_units.add_child(u)
+		if spec["team"] == Unit.TEAM_PLAYER:
+			_initial_player_count += 1
+		else:
+			_initial_enemy_count += 1
 
 
 func _start_countdown() -> void:
@@ -93,12 +122,6 @@ func _process(delta: float) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if _game_over:
-		if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_R:
-			var next_idx := _stage_index
-			if _last_won:
-				next_idx = (_stage_index + 1) % Stages.STAGES.size()
-			print("[Main] R restart: stage %d -> %d (won=%s)" % [_stage_index + 1, next_idx + 1, _last_won])
-			_load_stage(next_idx)
 		return
 	if _countdown_left > 0.0:
 		return
@@ -358,17 +381,50 @@ func _check_end_state() -> void:
 	_game_over = true
 	var stage_num := _stage_index + 1
 	var last_stage := _stage_index + 1 >= Stages.STAGES.size()
+	var kills := _initial_enemy_count - enemies_alive
+	var losses := _initial_player_count - players_alive
+	var result: String
 	if players_alive == 0 and enemies_alive == 0:
 		_last_won = false
-		_result_label.text = "무승부\n[R] 재도전"
+		result = "draw"
+		_result_title.text = "무승부"
 	elif enemies_alive == 0:
 		_last_won = true
-		if last_stage:
-			_result_label.text = "완주!\n[R] 처음부터"
-		else:
-			_result_label.text = "스테이지 %d 클리어!\n[R] 다음" % stage_num
+		result = "win"
+		_result_title.text = "완주!" if last_stage else "스테이지 %d 클리어" % stage_num
 	else:
 		_last_won = false
-		_result_label.text = "패배\n[R] 재도전"
-	_result_label.visible = true
-	print("[Main] GAME OVER stage=%d won=%s -> %s" % [stage_num, _last_won, _result_label.text])
+		result = "lose"
+		_result_title.text = "패배"
+	_result_stats.text = "처치 %d · 아군 생존 %d / %d" % [kills, players_alive, _initial_player_count]
+	if _last_won and last_stage:
+		_result_primary_button.text = "타이틀로"
+		_result_secondary_button.visible = false
+	elif _last_won:
+		_result_primary_button.text = "다음 스테이지"
+		_result_secondary_button.text = "타이틀로"
+		_result_secondary_button.visible = true
+	else:
+		_result_primary_button.text = "재도전"
+		_result_secondary_button.text = "타이틀로"
+		_result_secondary_button.visible = true
+	_result_panel.visible = true
+	GameState.record_battle(result, kills, losses, players_alive)
+	print("[Main] GAME OVER stage=%d result=%s kills=%d losses=%d" % [stage_num, result, kills, losses])
+
+
+func _on_primary_result_pressed() -> void:
+	if _last_won and GameState.is_last_stage():
+		GameState.delete_save()
+		print("[Main] primary -> Title (campaign complete)")
+		get_tree().change_scene_to_file("res://scenes/Title.tscn")
+		return
+	if _last_won:
+		GameState.advance_stage()
+	print("[Main] primary -> Prep (stage %d)" % (GameState.current_stage + 1))
+	get_tree().change_scene_to_file("res://scenes/Prep.tscn")
+
+
+func _on_secondary_result_pressed() -> void:
+	print("[Main] secondary -> Title")
+	get_tree().change_scene_to_file("res://scenes/Title.tscn")
