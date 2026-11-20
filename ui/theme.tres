@@ -1,0 +1,8 @@
+[gd_resource type="Theme" format=3]
+
+[sub_resource type="SystemFont" id="SystemFont_default"]
+font_names = PackedStringArray("Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans CJK KR", "sans-serif")
+
+[resource]
+default_font = SubResource("SystemFont_default")
+default_font_size = 20

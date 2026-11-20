@@ -1,9 +1,6 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene format=3]
 
 [ext_resource type="Script" path="res://scripts/Title.gd" id="1_title"]
-
-[sub_resource type="SystemFont" id="SystemFont_title"]
-font_names = PackedStringArray("Apple SD Gothic Neo", "sans-serif")
 
 [node name="Title" type="Control"]
 anchor_right = 1.0
@@ -32,14 +29,12 @@ theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 6
 theme_override_font_sizes/font_size = 96
-theme_override_fonts/font = SubResource("SystemFont_title")
 text = "SAINT"
 horizontal_alignment = 1
 
 [node name="Subtitle" type="Label" parent="VBox"]
 theme_override_colors/font_color = Color(0.75, 0.8, 0.9, 1)
 theme_override_font_sizes/font_size = 24
-theme_override_fonts/font = SubResource("SystemFont_title")
 text = "세인트아이즈 클론 MVP"
 horizontal_alignment = 1
 
@@ -49,20 +44,17 @@ custom_minimum_size = Vector2(0, 40)
 [node name="StartButton" type="Button" parent="VBox"]
 custom_minimum_size = Vector2(0, 56)
 theme_override_font_sizes/font_size = 28
-theme_override_fonts/font = SubResource("SystemFont_title")
 text = "새로 시작"
 
 [node name="ContinueButton" type="Button" parent="VBox"]
 custom_minimum_size = Vector2(0, 56)
 theme_override_font_sizes/font_size = 28
-theme_override_fonts/font = SubResource("SystemFont_title")
 text = "이어하기"
 visible = false
 
 [node name="QuitButton" type="Button" parent="VBox"]
 custom_minimum_size = Vector2(0, 56)
 theme_override_font_sizes/font_size = 28
-theme_override_fonts/font = SubResource("SystemFont_title")
 text = "종료"
 
 [connection signal="pressed" from="VBox/StartButton" to="." method="_on_start_pressed"]

@@ -4,7 +4,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Godot **4.7** project named "Saint". At the time of writing there are no scripts (`.gd`), scenes (`.tscn`), or resources beyond the default icon — the repo is a freshly-initialized project shell.
+Godot **4.7** project named "Saint": a 2D real-time small-squad battle game (title → prep → battle → result, 5-stage campaign). All art is placeholder shapes. `todo.md` is the roadmap.
+
+## Architecture
+
+Data lives in three places; scenes read from them rather than hard-coding values.
+
+- `scripts/UnitTypes.gd` — single source of truth for unit types (label, shape, preferred row, projectile/kiting flags, price, per-team stats). **Add a unit type by adding one entry to `TYPES` and its id to `ORDER`**; battle, stage placement, hire list, roster and save validation all read from it. Do not branch on type ids elsewhere.
+- `scripts/Stages.gd` — stage data (battlefield rect, reward, `player_<row>` spawn slots, enemies) plus helpers (`get_stage`, `deploy_cap`, `assign_slots`).
+- `scripts/GameState.gd` (autoload) — campaign state: stage index, money, roster, save/load, and the campaign rules in `conclude_battle()` (reward, permanent losses, stage advance, game over, save).
+- `scripts/Scenes.gd` — scene paths; change scenes with `Scenes.go(get_tree(), Scenes.PREP)`.
+
+Battle scene (`scenes/Main.tscn`) is split by responsibility:
+
+- `Main.gd` — stage load, spawning, countdown, win/lose detection.
+- `SelectionController.gd` — selection, squads, move/stop/attack-move input. Talks to `Main` only through `enabled`, `restore_squad_member()`, `forget_unit()` and `selection_changed`.
+- `ResultPanel.gd` — result overlay; emits `primary_pressed` / `secondary_pressed`.
+- `Unit.gd` / `Projectile.gd` — per-unit AI, combat, movement. Projectiles are added to the `Projectiles` node, units to `Units`.
+
+UI font (Korean-capable system font) comes from the project-wide theme `ui/theme.tres` (`gui/theme/custom`); do not add per-node font overrides.
 
 ## Running / editing
 

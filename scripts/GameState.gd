@@ -1,9 +1,20 @@
 extends Node
 
 const SAVE_PATH := "user://save.json"
+const SAVE_VERSION: int = 1
 const STARTING_MONEY: int = 100
 const KILL_BOUNTY: int = 5
 const STARTING_ROSTER := ["melee", "melee", "melee", "ranged", "ranged"]
+
+const RESULT_WIN := "win"
+const RESULT_LOSE := "lose"
+const RESULT_DRAW := "draw"
+
+# conclude_battle()이 돌려주는 캠페인 진행 결과
+const OUTCOME_NEXT := "next"            # 승리, 다음 스테이지로
+const OUTCOME_COMPLETE := "complete"    # 마지막 스테이지 승리
+const OUTCOME_RETRY := "retry"          # 패배/무승부, 남은 전력으로 재정비
+const OUTCOME_GAME_OVER := "game_over"  # 유닛도 고용할 돈도 없음
 
 var current_stage: int = 0
 var money: int = STARTING_MONEY
@@ -105,9 +116,9 @@ func set_unit_squad(id: int, squad: int) -> void:
 
 
 func hire(type: String, deploy_cap: int) -> bool:
-	if not UnitStats.HIRE.has(type):
+	if not UnitTypes.exists(type) or UnitTypes.price(type) <= 0:
 		return false
-	var price: int = UnitStats.HIRE[type]["price"]
+	var price := UnitTypes.price(type)
 	if money < price:
 		print("[GameState] hire %s refused: money %d < price %d" % [type, money, price])
 		return false
@@ -120,39 +131,57 @@ func hire(type: String, deploy_cap: int) -> bool:
 	return true
 
 
-func cheapest_hire_price() -> int:
-	var cheapest := -1
-	for type in UnitStats.HIRE:
-		var price: int = UnitStats.HIRE[type]["price"]
-		if cheapest < 0 or price < cheapest:
-			cheapest = price
-	return cheapest
-
-
 # 보유 유닛이 없고 새로 고용할 돈도 없으면 캠페인을 이어갈 수 없다.
 func is_game_over() -> bool:
-	return roster.is_empty() and money < cheapest_hire_price()
+	return roster.is_empty() and money < UnitTypes.cheapest_price()
 
 
 # --- 전투 결과 ---
 
-func record_battle(result: String, kills: int, player_losses: int, survivors: int, reward: int, dead_ids: Array[int]) -> void:
+func battle_reward(stage_idx: int, kills: int) -> int:
+	return Stages.reward(stage_idx) + kills * KILL_BOUNTY
+
+
+# 전투 한 판의 결과를 캠페인에 반영한다: 보상 지급, 전사자 명단 제거, 스테이지 진행, 세이브.
+# 결과 화면에서 어디로 나가든 손실·보상이 되돌려지지 않도록 여기서 바로 저장까지 끝낸다.
+func conclude_battle(result: String, kills: int, player_losses: int, survivors: int, dead_ids: Array[int]) -> String:
+	var reward := battle_reward(current_stage, kills) if result == RESULT_WIN else 0
 	last_result = result
 	last_kills = kills
 	last_player_losses = player_losses
 	last_survivors = survivors
 	last_reward = reward
-	if reward > 0:
-		money += reward
-	if not dead_ids.is_empty():
-		var kept: Array[Dictionary] = []
-		for entry in roster:
-			if not dead_ids.has(entry["id"]):
-				kept.append(entry)
-		roster = kept
-	print("[GameState] record: %s kills=%d losses=%d survivors=%d reward=%d money=%d roster=%d (lost ids %s)" % [
-		result, kills, player_losses, survivors, reward, money, roster.size(), dead_ids,
+	money += reward
+	_remove_units(dead_ids)
+	var outcome: String
+	if result == RESULT_WIN:
+		if is_last_stage():
+			delete_save()
+			outcome = OUTCOME_COMPLETE
+		else:
+			advance_stage()
+			save()
+			outcome = OUTCOME_NEXT
+	elif is_game_over():
+		delete_save()
+		outcome = OUTCOME_GAME_OVER
+	else:
+		save()
+		outcome = OUTCOME_RETRY
+	print("[GameState] battle concluded: %s -> %s kills=%d losses=%d survivors=%d reward=%d money=%d roster=%d (lost ids %s)" % [
+		result, outcome, kills, player_losses, survivors, reward, money, roster.size(), dead_ids,
 	])
+	return outcome
+
+
+func _remove_units(ids: Array[int]) -> void:
+	if ids.is_empty():
+		return
+	var kept: Array[Dictionary] = []
+	for entry in roster:
+		if not ids.has(entry["id"]):
+			kept.append(entry)
+	roster = kept
 
 
 func advance_stage() -> void:
@@ -161,7 +190,7 @@ func advance_stage() -> void:
 
 
 func is_last_stage() -> bool:
-	return current_stage + 1 >= Stages.STAGES.size()
+	return current_stage + 1 >= Stages.count()
 
 
 # --- 세이브/로드 ---
@@ -176,6 +205,7 @@ func save() -> void:
 		push_warning("[GameState] save open failed: %s" % FileAccess.get_open_error())
 		return
 	var payload := {
+		"version": SAVE_VERSION,
 		"current_stage": current_stage,
 		"money": money,
 		"roster": roster,
@@ -199,7 +229,7 @@ func load_save() -> bool:
 		delete_save()
 		return false
 	var idx: int = int(parsed["current_stage"])
-	if idx < 0 or idx >= Stages.STAGES.size():
+	if idx < 0 or idx >= Stages.count():
 		push_warning("[GameState] save stage %d out of range, discarding" % (idx + 1))
 		delete_save()
 		return false
@@ -219,7 +249,7 @@ func _load_roster(raw: Array, next_id: int) -> void:
 	roster.clear()
 	var max_id := 0
 	for item in raw:
-		if not (item is Dictionary) or not UnitStats.HIRE.has(item.get("type", "")):
+		if not (item is Dictionary) or not UnitTypes.exists(str(item.get("type", ""))):
 			push_warning("[GameState] skipping invalid roster entry: %s" % [item])
 			continue
 		var id := int(item.get("id", 0))

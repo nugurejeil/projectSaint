@@ -19,12 +19,11 @@ var _hire_buttons: Dictionary = {}
 
 
 func _ready() -> void:
-	_apply_theme()
 	var idx: int = GameState.current_stage
-	_stage = Stages.STAGES[idx]
+	_stage = Stages.get_stage(idx)
 	_deploy_cap = Stages.deploy_cap(_stage)
 	GameState.clamp_deployment(_deploy_cap)
-	_stage_label.text = "스테이지 %d / %d" % [idx + 1, Stages.STAGES.size()]
+	_stage_label.text = "스테이지 %d / %d" % [idx + 1, Stages.count()]
 	if GameState.last_result == "":
 		_last_result_label.visible = false
 	else:
@@ -38,16 +37,6 @@ func _ready() -> void:
 	])
 
 
-# 코드로 만드는 목록 항목도 한글이 나오도록 씬 전체에 시스템 폰트를 기본값으로 건다.
-func _apply_theme() -> void:
-	var font := SystemFont.new()
-	font.font_names = PackedStringArray(["Apple SD Gothic Neo", "sans-serif"])
-	var t := Theme.new()
-	t.default_font = font
-	t.default_font_size = 20
-	theme = t
-
-
 func _refresh() -> void:
 	_money_label.text = "잔액: %d G" % GameState.money
 	var reward: int = int(_stage.get("reward", 0))
@@ -58,22 +47,19 @@ func _refresh() -> void:
 	_roster_title.text = "보유 유닛 %d  ·  출전 %d / %d" % [GameState.roster.size(), deployed, _deploy_cap]
 	_rebuild_roster_list()
 	for type in _hire_buttons:
-		var price: int = UnitStats.HIRE[type]["price"]
-		(_hire_buttons[type] as Button).disabled = GameState.money < price
+		(_hire_buttons[type] as Button).disabled = GameState.money < UnitTypes.price(type)
 	_battle_button.disabled = deployed == 0
 	_battle_button.text = "전투 시작" if deployed > 0 else "출전 유닛 없음"
 
 
 func _summarize_matchup() -> String:
-	var player := {"melee": 0, "ranged": 0}
+	var player_types: Array[String] = []
 	for entry in GameState.deployed_units():
-		player[entry["type"]] += 1
-	var enemy := {"melee": 0, "ranged": 0}
-	for spec in _stage["enemies"]:
-		enemy[spec["type"]] += 1
-	return "출전 %d (근접 %d · 원거리 %d) vs 적 %d (근접 %d · 원거리 %d)" % [
-		player["melee"] + player["ranged"], player["melee"], player["ranged"],
-		enemy["melee"] + enemy["ranged"], enemy["melee"], enemy["ranged"],
+		player_types.append(entry["type"])
+	var enemy_types := Stages.enemy_types(_stage)
+	return "출전 %d (%s) vs 적 %d (%s)" % [
+		player_types.size(), UnitTypes.summarize(player_types),
+		enemy_types.size(), UnitTypes.summarize(enemy_types),
 	]
 
 
@@ -96,7 +82,7 @@ func _make_roster_row(entry: Dictionary) -> Control:
 	row.add_theme_constant_override("separation", 12)
 	row.add_child(_make_icon(entry["type"]))
 	var name_label := Label.new()
-	name_label.text = "%s #%d" % [UnitStats.HIRE[entry["type"]]["label"], entry["id"]]
+	name_label.text = "%s #%d" % [UnitTypes.label(entry["type"]), entry["id"]]
 	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(name_label)
 	if entry["squad"] > 0:
@@ -115,7 +101,7 @@ func _make_roster_row(entry: Dictionary) -> Control:
 
 func _make_icon(type: String) -> Label:
 	var icon := Label.new()
-	icon.text = "●" if type == "ranged" else "■"
+	icon.text = "●" if UnitTypes.get_def(type)["shape"] == UnitTypes.SHAPE_CIRCLE else "■"
 	icon.add_theme_color_override("font_color", UNIT_COLOR)
 	icon.add_theme_font_size_override("font_size", 26)
 	icon.custom_minimum_size = Vector2(30, 0)
@@ -124,16 +110,15 @@ func _make_icon(type: String) -> Label:
 
 
 func _build_hire_list() -> void:
-	for type in UnitStats.HIRE_ORDER:
-		var info: Dictionary = UnitStats.HIRE[type]
-		var stats: Dictionary = info["stats"]
+	for type in UnitTypes.hireable():
+		var stats: Dictionary = UnitTypes.stats(type, true)
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 12)
 		row.add_child(_make_icon(type))
 		var text_box := VBoxContainer.new()
 		text_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var name_label := Label.new()
-		name_label.text = info["label"]
+		name_label.text = UnitTypes.label(type)
 		name_label.add_theme_font_size_override("font_size", 22)
 		text_box.add_child(name_label)
 		var stats_label := Label.new()
@@ -145,7 +130,7 @@ func _build_hire_list() -> void:
 		text_box.add_child(stats_label)
 		row.add_child(text_box)
 		var button := Button.new()
-		button.text = "고용  %d G" % info["price"]
+		button.text = "고용  %d G" % UnitTypes.price(type)
 		button.custom_minimum_size = Vector2(150, 48)
 		button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		button.pressed.connect(_on_hire_pressed.bind(type))
@@ -167,13 +152,13 @@ func _on_deploy_toggled(pressed: bool, id: int) -> void:
 
 func _format_last_result() -> String:
 	match GameState.last_result:
-		"win":
+		GameState.RESULT_WIN:
 			return "직전 전투: 승리 (처치 %d · 생존 %d · 손실 %d · +%d G)" % [
 				GameState.last_kills, GameState.last_survivors, GameState.last_player_losses, GameState.last_reward,
 			]
-		"lose":
+		GameState.RESULT_LOSE:
 			return "직전 전투: 패배 (처치 %d · 아군 손실 %d)" % [GameState.last_kills, GameState.last_player_losses]
-		"draw":
+		GameState.RESULT_DRAW:
 			return "직전 전투: 무승부 (처치 %d · 아군 손실 %d)" % [GameState.last_kills, GameState.last_player_losses]
 		_:
 			return ""
@@ -182,10 +167,8 @@ func _format_last_result() -> String:
 func _on_battle_pressed() -> void:
 	if GameState.deployed_count() == 0:
 		return
-	print("[Prep] battle -> Main (%d deployed)" % GameState.deployed_count())
-	get_tree().change_scene_to_file("res://scenes/Main.tscn")
+	Scenes.go(get_tree(), Scenes.BATTLE)
 
 
 func _on_title_pressed() -> void:
-	print("[Prep] title")
-	get_tree().change_scene_to_file("res://scenes/Title.tscn")
+	Scenes.go(get_tree(), Scenes.TITLE)

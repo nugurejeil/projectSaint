@@ -1,10 +1,9 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene format=3]
 
 [ext_resource type="Script" path="res://scripts/Main.gd" id="1_main"]
 [ext_resource type="Script" path="res://scripts/DragBox.gd" id="3_dragbox"]
-
-[sub_resource type="SystemFont" id="SystemFont_result"]
-font_names = PackedStringArray("Apple SD Gothic Neo", "sans-serif")
+[ext_resource type="Script" path="res://scripts/SelectionController.gd" id="4_selection"]
+[ext_resource type="Script" path="res://scripts/ResultPanel.gd" id="5_result"]
 
 [node name="Main" type="Node2D"]
 script = ExtResource("1_main")
@@ -18,12 +17,21 @@ polygon = PackedVector2Array(40, 40, 1240, 40, 1240, 680, 40, 680)
 
 [node name="Units" type="Node2D" parent="."]
 
+[node name="Projectiles" type="Node2D" parent="."]
+
+[node name="Selection" type="Node2D" parent="."]
+script = ExtResource("4_selection")
+
+[node name="DragBox" type="Node2D" parent="Selection"]
+script = ExtResource("3_dragbox")
+
 [node name="UI" type="CanvasLayer" parent="."]
 
 [node name="ResultPanel" type="Control" parent="UI"]
 anchor_right = 1.0
 anchor_bottom = 1.0
 visible = false
+script = ExtResource("5_result")
 
 [node name="Dim" type="ColorRect" parent="UI/ResultPanel"]
 anchor_right = 1.0
@@ -47,14 +55,12 @@ theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 8
 theme_override_font_sizes/font_size = 84
-theme_override_fonts/font = SubResource("SystemFont_result")
 text = "결과"
 horizontal_alignment = 1
 
 [node name="ResultStats" type="Label" parent="UI/ResultPanel/VBox"]
 theme_override_colors/font_color = Color(0.9, 0.95, 1, 1)
 theme_override_font_sizes/font_size = 26
-theme_override_fonts/font = SubResource("SystemFont_result")
 text = ""
 horizontal_alignment = 1
 
@@ -64,13 +70,11 @@ custom_minimum_size = Vector2(0, 20)
 [node name="PrimaryButton" type="Button" parent="UI/ResultPanel/VBox"]
 custom_minimum_size = Vector2(0, 56)
 theme_override_font_sizes/font_size = 26
-theme_override_fonts/font = SubResource("SystemFont_result")
 text = "다음"
 
 [node name="SecondaryButton" type="Button" parent="UI/ResultPanel/VBox"]
 custom_minimum_size = Vector2(0, 48)
 theme_override_font_sizes/font_size = 22
-theme_override_fonts/font = SubResource("SystemFont_result")
 text = "타이틀로"
 
 [node name="CountdownLabel" type="Label" parent="UI"]
@@ -81,7 +85,6 @@ theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 12
 theme_override_font_sizes/font_size = 200
-theme_override_fonts/font = SubResource("SystemFont_result")
 horizontal_alignment = 1
 vertical_alignment = 1
 text = "3"
@@ -97,7 +100,6 @@ theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 4
 theme_override_font_sizes/font_size = 28
-theme_override_fonts/font = SubResource("SystemFont_result")
 text = "선택: 0"
 visible = false
 
@@ -113,9 +115,5 @@ theme_override_colors/font_color = Color(1, 0.95, 0.55, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 4
 theme_override_font_sizes/font_size = 28
-theme_override_fonts/font = SubResource("SystemFont_result")
 text = "잔액: 0 G"
 horizontal_alignment = 2
-
-[node name="DragBox" type="Node2D" parent="."]
-script = ExtResource("3_dragbox")

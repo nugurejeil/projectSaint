@@ -1,9 +1,9 @@
 class_name Stages
 extends RefCounted
 
-# 아군은 GameState.roster의 출전 유닛이 player_front / player_back 슬롯에 배치된다.
-# 근접은 front, 원거리는 back을 먼저 채우고 넘치면 반대쪽 빈 슬롯을 쓴다.
-# 슬롯 총 개수가 그 스테이지의 출전 상한이다.
+# 스테이지 데이터. 아군은 GameState.roster의 출전 유닛이 player_<줄> 슬롯에 배치되고
+# (줄 이름은 UnitTypes.ROWS), 슬롯 총 개수가 그 스테이지의 출전 상한이다.
+# 적은 enemies에 타입과 위치로 직접 적는다.
 const STAGES := [
 	{
 		"name": "1. 조우전",
@@ -78,24 +78,54 @@ const STAGES := [
 ]
 
 
+static func count() -> int:
+	return STAGES.size()
+
+
+static func get_stage(idx: int) -> Dictionary:
+	return STAGES[idx]
+
+
+static func reward(idx: int) -> int:
+	return int(STAGES[idx].get("reward", 0))
+
+
+static func enemy_types(stage: Dictionary) -> Array[String]:
+	var out: Array[String] = []
+	for spec in stage["enemies"]:
+		out.append(spec["type"])
+	return out
+
+
+static func _row_slots(stage: Dictionary, row: String) -> Array:
+	return stage.get("player_" + row, [])
+
+
 static func deploy_cap(stage: Dictionary) -> int:
-	return stage["player_front"].size() + stage["player_back"].size()
+	var total := 0
+	for row in UnitTypes.ROWS:
+		total += _row_slots(stage, row).size()
+	return total
 
 
-# 출전 유닛(명단 항목) 순서대로 시작 위치를 돌려준다. 슬롯보다 많은 유닛은 위치를 받지 못한다.
+# 출전 유닛(명단 항목) 순서대로 시작 위치를 돌려준다.
+# 각 유닛은 타입이 선호하는 줄(UnitTypes의 row)을 먼저 채우고, 넘치면 남은 빈 슬롯을 쓴다.
 static func assign_slots(stage: Dictionary, entries: Array[Dictionary]) -> Array[Vector2]:
-	var free_front: Array = stage["player_front"].duplicate()
-	var free_back: Array = stage["player_back"].duplicate()
+	var free: Dictionary = {}
+	for row in UnitTypes.ROWS:
+		free[row] = _row_slots(stage, row).duplicate()
 	var result: Array[Vector2] = []
-	var pending: Array[int] = []
 	result.resize(entries.size())
+	var pending: Array[int] = []
 	for i in range(entries.size()):
-		var preferred: Array = free_back if entries[i]["type"] == "ranged" else free_front
+		var preferred: Array = free[UnitTypes.get_def(entries[i]["type"])["row"]]
 		if preferred.is_empty():
 			pending.append(i)
 		else:
 			result[i] = preferred.pop_front()
-	var leftover: Array = free_front + free_back
+	var leftover: Array = []
+	for row in UnitTypes.ROWS:
+		leftover.append_array(free[row])
 	for i in pending:
 		if leftover.is_empty():
 			push_warning("[Stages] no slot left for unit #%d" % entries[i]["id"])

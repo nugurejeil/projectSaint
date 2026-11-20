@@ -9,8 +9,7 @@ func _ready() -> void:
 
 func _on_start_pressed() -> void:
 	GameState.reset_campaign()
-	print("[Title] start -> Prep")
-	get_tree().change_scene_to_file("res://scenes/Prep.tscn")
+	Scenes.go(get_tree(), Scenes.PREP)
 
 
 func _on_continue_pressed() -> void:
@@ -18,8 +17,7 @@ func _on_continue_pressed() -> void:
 		print("[Title] continue failed (no save)")
 		_continue_button.visible = false
 		return
-	print("[Title] continue -> Prep (stage %d)" % (GameState.current_stage + 1))
-	get_tree().change_scene_to_file("res://scenes/Prep.tscn")
+	Scenes.go(get_tree(), Scenes.PREP)
 
 
 func _on_quit_pressed() -> void:
