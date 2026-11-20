@@ -17,6 +17,7 @@ enum UnitType { MELEE, RANGED }
 
 var health: float
 var squad_id: int = 0
+var roster_id: int = -1
 var active: bool = true
 var _target_pos: Vector2 = Vector2.ZERO
 var _has_target: bool = false

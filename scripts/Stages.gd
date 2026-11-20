@@ -1,85 +1,105 @@
 class_name Stages
 extends RefCounted
 
+# 아군은 GameState.roster의 출전 유닛이 player_front / player_back 슬롯에 배치된다.
+# 근접은 front, 원거리는 back을 먼저 채우고 넘치면 반대쪽 빈 슬롯을 쓴다.
+# 슬롯 총 개수가 그 스테이지의 출전 상한이다.
 const STAGES := [
 	{
-		"name": "1. 조우전 (5 vs 3)",
+		"name": "1. 조우전",
 		"battlefield": Rect2(40, 40, 1200, 640),
-		"units": [
-			{"team": 0, "type": "melee", "pos": Vector2(320, 260)},
-			{"team": 0, "type": "melee", "pos": Vector2(320, 360)},
-			{"team": 0, "type": "melee", "pos": Vector2(320, 460)},
-			{"team": 0, "type": "ranged", "pos": Vector2(240, 310)},
-			{"team": 0, "type": "ranged", "pos": Vector2(240, 410)},
-			{"team": 1, "type": "melee", "pos": Vector2(960, 280)},
-			{"team": 1, "type": "melee", "pos": Vector2(960, 400)},
-			{"team": 1, "type": "ranged", "pos": Vector2(1040, 340)},
+		"reward": 40,
+		"player_front": [Vector2(320, 260), Vector2(320, 360), Vector2(320, 460), Vector2(320, 160)],
+		"player_back": [Vector2(240, 310), Vector2(240, 410), Vector2(240, 210), Vector2(240, 510)],
+		"enemies": [
+			{"type": "melee", "pos": Vector2(960, 280)},
+			{"type": "melee", "pos": Vector2(960, 400)},
+			{"type": "ranged", "pos": Vector2(1040, 340)},
 		],
 	},
 	{
-		"name": "2. 넓은 평원 (5 vs 4)",
+		"name": "2. 넓은 평원",
 		"battlefield": Rect2(20, 20, 1240, 680),
-		"units": [
-			{"team": 0, "type": "melee", "pos": Vector2(280, 200)},
-			{"team": 0, "type": "melee", "pos": Vector2(280, 320)},
-			{"team": 0, "type": "melee", "pos": Vector2(280, 440)},
-			{"team": 0, "type": "ranged", "pos": Vector2(200, 260)},
-			{"team": 0, "type": "ranged", "pos": Vector2(200, 380)},
-			{"team": 1, "type": "melee", "pos": Vector2(1000, 220)},
-			{"team": 1, "type": "melee", "pos": Vector2(1000, 340)},
-			{"team": 1, "type": "melee", "pos": Vector2(1000, 460)},
-			{"team": 1, "type": "ranged", "pos": Vector2(1080, 340)},
+		"reward": 60,
+		"player_front": [Vector2(280, 200), Vector2(280, 320), Vector2(280, 440), Vector2(280, 560)],
+		"player_back": [Vector2(200, 260), Vector2(200, 380), Vector2(200, 500), Vector2(200, 140)],
+		"enemies": [
+			{"type": "melee", "pos": Vector2(1000, 220)},
+			{"type": "melee", "pos": Vector2(1000, 340)},
+			{"type": "melee", "pos": Vector2(1000, 460)},
+			{"type": "ranged", "pos": Vector2(1080, 340)},
 		],
 	},
 	{
-		"name": "3. 좁은 회랑 (5 vs 5)",
+		"name": "3. 좁은 회랑",
 		"battlefield": Rect2(40, 180, 1200, 360),
-		"units": [
-			{"team": 0, "type": "melee", "pos": Vector2(280, 280)},
-			{"team": 0, "type": "melee", "pos": Vector2(280, 360)},
-			{"team": 0, "type": "melee", "pos": Vector2(280, 440)},
-			{"team": 0, "type": "ranged", "pos": Vector2(200, 320)},
-			{"team": 0, "type": "ranged", "pos": Vector2(200, 400)},
-			{"team": 1, "type": "melee", "pos": Vector2(1000, 260)},
-			{"team": 1, "type": "melee", "pos": Vector2(1000, 360)},
-			{"team": 1, "type": "melee", "pos": Vector2(1000, 460)},
-			{"team": 1, "type": "ranged", "pos": Vector2(1080, 300)},
-			{"team": 1, "type": "ranged", "pos": Vector2(1080, 420)},
+		"reward": 90,
+		"player_front": [Vector2(280, 280), Vector2(280, 360), Vector2(280, 440), Vector2(340, 360)],
+		"player_back": [Vector2(200, 320), Vector2(200, 400), Vector2(200, 240), Vector2(200, 480)],
+		"enemies": [
+			{"type": "melee", "pos": Vector2(1000, 260)},
+			{"type": "melee", "pos": Vector2(1000, 360)},
+			{"type": "melee", "pos": Vector2(1000, 460)},
+			{"type": "ranged", "pos": Vector2(1080, 300)},
+			{"type": "ranged", "pos": Vector2(1080, 420)},
 		],
 	},
 	{
-		"name": "4. 포위 (5 vs 6)",
+		"name": "4. 포위",
 		"battlefield": Rect2(40, 40, 1200, 640),
-		"units": [
-			{"team": 0, "type": "melee", "pos": Vector2(600, 340)},
-			{"team": 0, "type": "melee", "pos": Vector2(660, 340)},
-			{"team": 0, "type": "melee", "pos": Vector2(720, 340)},
-			{"team": 0, "type": "ranged", "pos": Vector2(630, 400)},
-			{"team": 0, "type": "ranged", "pos": Vector2(690, 400)},
-			{"team": 1, "type": "melee", "pos": Vector2(200, 140)},
-			{"team": 1, "type": "melee", "pos": Vector2(1120, 140)},
-			{"team": 1, "type": "melee", "pos": Vector2(200, 560)},
-			{"team": 1, "type": "melee", "pos": Vector2(1120, 560)},
-			{"team": 1, "type": "ranged", "pos": Vector2(660, 100)},
-			{"team": 1, "type": "ranged", "pos": Vector2(660, 620)},
+		"reward": 120,
+		"player_front": [Vector2(600, 340), Vector2(660, 340), Vector2(720, 340), Vector2(660, 280)],
+		"player_back": [Vector2(630, 400), Vector2(690, 400), Vector2(570, 400), Vector2(750, 400)],
+		"enemies": [
+			{"type": "melee", "pos": Vector2(200, 140)},
+			{"type": "melee", "pos": Vector2(1120, 140)},
+			{"type": "melee", "pos": Vector2(200, 560)},
+			{"type": "melee", "pos": Vector2(1120, 560)},
+			{"type": "ranged", "pos": Vector2(660, 100)},
+			{"type": "ranged", "pos": Vector2(660, 620)},
 		],
 	},
 	{
-		"name": "5. 최후의 전선 (5 vs 7)",
+		"name": "5. 최후의 전선",
 		"battlefield": Rect2(20, 20, 1240, 680),
-		"units": [
-			{"team": 0, "type": "melee", "pos": Vector2(260, 260)},
-			{"team": 0, "type": "melee", "pos": Vector2(260, 360)},
-			{"team": 0, "type": "melee", "pos": Vector2(260, 460)},
-			{"team": 0, "type": "ranged", "pos": Vector2(180, 310)},
-			{"team": 0, "type": "ranged", "pos": Vector2(180, 410)},
-			{"team": 1, "type": "melee", "pos": Vector2(1000, 180)},
-			{"team": 1, "type": "melee", "pos": Vector2(1000, 300)},
-			{"team": 1, "type": "melee", "pos": Vector2(1000, 420)},
-			{"team": 1, "type": "melee", "pos": Vector2(1000, 540)},
-			{"team": 1, "type": "ranged", "pos": Vector2(1100, 220)},
-			{"team": 1, "type": "ranged", "pos": Vector2(1100, 360)},
-			{"team": 1, "type": "ranged", "pos": Vector2(1100, 500)},
+		"reward": 160,
+		"player_front": [Vector2(260, 260), Vector2(260, 360), Vector2(260, 460), Vector2(260, 160)],
+		"player_back": [Vector2(180, 310), Vector2(180, 410), Vector2(180, 210), Vector2(180, 510)],
+		"enemies": [
+			{"type": "melee", "pos": Vector2(1000, 180)},
+			{"type": "melee", "pos": Vector2(1000, 300)},
+			{"type": "melee", "pos": Vector2(1000, 420)},
+			{"type": "melee", "pos": Vector2(1000, 540)},
+			{"type": "ranged", "pos": Vector2(1100, 220)},
+			{"type": "ranged", "pos": Vector2(1100, 360)},
+			{"type": "ranged", "pos": Vector2(1100, 500)},
 		],
 	},
 ]
+
+
+static func deploy_cap(stage: Dictionary) -> int:
+	return stage["player_front"].size() + stage["player_back"].size()
+
+
+# 출전 유닛(명단 항목) 순서대로 시작 위치를 돌려준다. 슬롯보다 많은 유닛은 위치를 받지 못한다.
+static func assign_slots(stage: Dictionary, entries: Array[Dictionary]) -> Array[Vector2]:
+	var free_front: Array = stage["player_front"].duplicate()
+	var free_back: Array = stage["player_back"].duplicate()
+	var result: Array[Vector2] = []
+	var pending: Array[int] = []
+	result.resize(entries.size())
+	for i in range(entries.size()):
+		var preferred: Array = free_back if entries[i]["type"] == "ranged" else free_front
+		if preferred.is_empty():
+			pending.append(i)
+		else:
+			result[i] = preferred.pop_front()
+	var leftover: Array = free_front + free_back
+	for i in pending:
+		if leftover.is_empty():
+			push_warning("[Stages] no slot left for unit #%d" % entries[i]["id"])
+			result[i] = stage["battlefield"].get_center()
+		else:
+			result[i] = leftover.pop_front()
+	return result

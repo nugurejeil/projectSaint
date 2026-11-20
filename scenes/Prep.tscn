@@ -15,54 +15,121 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 color = Color(0.12, 0.14, 0.16, 1)
 
-[node name="VBox" type="VBoxContainer" parent="."]
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -320.0
-offset_top = -220.0
-offset_right = 320.0
-offset_bottom = 220.0
-alignment = 1
-theme_override_constants/separation = 20
+[node name="MoneyLabel" type="Label" parent="."]
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -280.0
+offset_top = 20.0
+offset_right = -20.0
+offset_bottom = 60.0
+theme_override_colors/font_color = Color(1, 0.95, 0.55, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 28
+theme_override_fonts/font = SubResource("SystemFont_prep")
+text = "잔액: 0 G"
+horizontal_alignment = 2
 
-[node name="StageLabel" type="Label" parent="VBox"]
+[node name="Margin" type="MarginContainer" parent="."]
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_constants/margin_left = 60
+theme_override_constants/margin_top = 30
+theme_override_constants/margin_right = 60
+theme_override_constants/margin_bottom = 30
+
+[node name="VBox" type="VBoxContainer" parent="Margin"]
+theme_override_constants/separation = 12
+
+[node name="StageLabel" type="Label" parent="Margin/VBox"]
 theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_font_sizes/font_size = 56
+theme_override_font_sizes/font_size = 44
 theme_override_fonts/font = SubResource("SystemFont_prep")
 text = "스테이지 1 / 5"
 horizontal_alignment = 1
 
-[node name="SummaryLabel" type="Label" parent="VBox"]
+[node name="SummaryLabel" type="Label" parent="Margin/VBox"]
 theme_override_colors/font_color = Color(0.85, 0.9, 1, 1)
-theme_override_font_sizes/font_size = 22
+theme_override_font_sizes/font_size = 20
 theme_override_fonts/font = SubResource("SystemFont_prep")
 text = ""
 horizontal_alignment = 1
 autowrap_mode = 3
 
-[node name="LastResultLabel" type="Label" parent="VBox"]
+[node name="LastResultLabel" type="Label" parent="Margin/VBox"]
 theme_override_colors/font_color = Color(0.9, 0.85, 0.5, 1)
-theme_override_font_sizes/font_size = 20
+theme_override_font_sizes/font_size = 18
 theme_override_fonts/font = SubResource("SystemFont_prep")
 text = ""
 horizontal_alignment = 1
 
-[node name="Spacer" type="Control" parent="VBox"]
-custom_minimum_size = Vector2(0, 20)
+[node name="Columns" type="HBoxContainer" parent="Margin/VBox"]
+size_flags_vertical = 3
+theme_override_constants/separation = 24
 
-[node name="BattleButton" type="Button" parent="VBox"]
-custom_minimum_size = Vector2(0, 56)
-theme_override_font_sizes/font_size = 28
-theme_override_fonts/font = SubResource("SystemFont_prep")
-text = "전투 시작"
+[node name="RosterPanel" type="PanelContainer" parent="Margin/VBox/Columns"]
+size_flags_horizontal = 3
 
-[node name="TitleButton" type="Button" parent="VBox"]
-custom_minimum_size = Vector2(0, 48)
+[node name="Pad" type="MarginContainer" parent="Margin/VBox/Columns/RosterPanel"]
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 12
+
+[node name="VBox" type="VBoxContainer" parent="Margin/VBox/Columns/RosterPanel/Pad"]
+theme_override_constants/separation = 8
+
+[node name="RosterTitle" type="Label" parent="Margin/VBox/Columns/RosterPanel/Pad/VBox"]
+theme_override_font_sizes/font_size = 24
+text = "보유 유닛"
+
+[node name="Scroll" type="ScrollContainer" parent="Margin/VBox/Columns/RosterPanel/Pad/VBox"]
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="RosterList" type="VBoxContainer" parent="Margin/VBox/Columns/RosterPanel/Pad/VBox/Scroll"]
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="HirePanel" type="PanelContainer" parent="Margin/VBox/Columns"]
+size_flags_horizontal = 3
+
+[node name="Pad" type="MarginContainer" parent="Margin/VBox/Columns/HirePanel"]
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 12
+
+[node name="VBox" type="VBoxContainer" parent="Margin/VBox/Columns/HirePanel/Pad"]
+theme_override_constants/separation = 8
+
+[node name="HireTitle" type="Label" parent="Margin/VBox/Columns/HirePanel/Pad/VBox"]
+theme_override_font_sizes/font_size = 24
+text = "용병 고용"
+
+[node name="HireList" type="VBoxContainer" parent="Margin/VBox/Columns/HirePanel/Pad/VBox"]
+theme_override_constants/separation = 14
+
+[node name="HintLabel" type="Label" parent="Margin/VBox/Columns/HirePanel/Pad/VBox"]
+size_flags_vertical = 10
+theme_override_colors/font_color = Color(0.7, 0.75, 0.8, 1)
+theme_override_font_sizes/font_size = 16
+text = "전투에서 쓰러진 유닛은 돌아오지 않습니다. 살아남은 유닛은 체력을 회복하고 다음 전투에 나섭니다."
+autowrap_mode = 3
+
+[node name="Buttons" type="HBoxContainer" parent="Margin/VBox"]
+alignment = 1
+theme_override_constants/separation = 20
+
+[node name="TitleButton" type="Button" parent="Margin/VBox/Buttons"]
+custom_minimum_size = Vector2(200, 52)
 theme_override_font_sizes/font_size = 22
-theme_override_fonts/font = SubResource("SystemFont_prep")
 text = "타이틀로"
 
-[connection signal="pressed" from="VBox/BattleButton" to="." method="_on_battle_pressed"]
-[connection signal="pressed" from="VBox/TitleButton" to="." method="_on_title_pressed"]
+[node name="BattleButton" type="Button" parent="Margin/VBox/Buttons"]
+custom_minimum_size = Vector2(320, 52)
+theme_override_font_sizes/font_size = 26
+text = "전투 시작"
+
+[connection signal="pressed" from="Margin/VBox/Buttons/BattleButton" to="." method="_on_battle_pressed"]
+[connection signal="pressed" from="Margin/VBox/Buttons/TitleButton" to="." method="_on_title_pressed"]

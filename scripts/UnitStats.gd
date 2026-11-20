@@ -32,3 +32,11 @@ const PLAYER_RANGED := {
 	"damage": 24.0,
 	"cooldown": 1.2,
 }
+
+# 고용 가능한 용병. 준비 화면 목록 순서는 HIRE_ORDER를 따른다.
+const HIRE_ORDER := ["melee", "ranged"]
+
+const HIRE := {
+	"melee": {"label": "근접병", "price": 50, "stats": PLAYER_MELEE},
+	"ranged": {"label": "원거리병", "price": 70, "stats": PLAYER_RANGED},
+}

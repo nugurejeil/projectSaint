@@ -101,5 +101,21 @@ theme_override_fonts/font = SubResource("SystemFont_result")
 text = "선택: 0"
 visible = false
 
+[node name="MoneyLabel" type="Label" parent="UI"]
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -280.0
+offset_top = 16.0
+offset_right = -20.0
+offset_bottom = 60.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(1, 0.95, 0.55, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 28
+theme_override_fonts/font = SubResource("SystemFont_result")
+text = "잔액: 0 G"
+horizontal_alignment = 2
+
 [node name="DragBox" type="Node2D" parent="."]
 script = ExtResource("3_dragbox")

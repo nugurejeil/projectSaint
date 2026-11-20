@@ -11,6 +11,8 @@ var _attack_armed: bool = false
 var _countdown_left: float = 0.0
 var _initial_enemy_count: int = 0
 var _initial_player_count: int = 0
+var _dead_roster_ids: Array[int] = []
+var _primary_goes_title: bool = false
 
 const SQUAD_KEYS := {KEY_1: 1, KEY_2: 2, KEY_3: 3}
 
@@ -23,6 +25,7 @@ const SQUAD_KEYS := {KEY_1: 1, KEY_2: 2, KEY_3: 3}
 @onready var _result_secondary_button: Button = $UI/ResultPanel/VBox/SecondaryButton
 @onready var _selection_label: Label = $UI/SelectionCountLabel
 @onready var _countdown_label: Label = $UI/CountdownLabel
+@onready var _money_label: Label = $UI/MoneyLabel
 @onready var _drag_box: Node2D = $DragBox
 
 const CLICK_DRAG_THRESHOLD: float = 5.0
@@ -35,7 +38,12 @@ const UnitScene := preload("res://scenes/Unit.tscn")
 func _ready() -> void:
 	_result_primary_button.pressed.connect(_on_primary_result_pressed)
 	_result_secondary_button.pressed.connect(_on_secondary_result_pressed)
+	_refresh_money()
 	_load_stage(GameState.current_stage)
+
+
+func _refresh_money() -> void:
+	_money_label.text = "잔액: %d G" % GameState.money
 
 
 func _load_stage(idx: int) -> void:
@@ -45,6 +53,10 @@ func _load_stage(idx: int) -> void:
 	_clear_battle()
 	_apply_battlefield(stage["battlefield"])
 	_spawn_stage_units(stage)
+	if _initial_player_count == 0:
+		print("[Main] no deployed units, back to Prep")
+		get_tree().change_scene_to_file.call_deferred("res://scenes/Prep.tscn")
+		return
 	_start_countdown()
 
 
@@ -75,28 +87,53 @@ func _clear_battle() -> void:
 
 
 func _spawn_stage_units(stage: Dictionary) -> void:
-	var counters: Dictionary = {}
 	var rect: Rect2 = stage["battlefield"]
 	_initial_player_count = 0
 	_initial_enemy_count = 0
-	for spec in stage["units"]:
-		var u: Unit = UnitScene.instantiate()
-		u.team = spec["team"]
-		u.unit_type = Unit.UnitType.RANGED if spec["type"] == "ranged" else Unit.UnitType.MELEE
-		u.position = spec["pos"]
-		u.battlefield_rect = rect
-		var key: String = "%d_%s" % [spec["team"], spec["type"]]
-		counters[key] = counters.get(key, 0) + 1
-		var prefix: String = "P" if spec["team"] == Unit.TEAM_PLAYER else "E"
-		var type_ch: String = "R" if spec["type"] == "ranged" else "M"
-		u.name = "%s_%s_%d" % [prefix, type_ch, counters[key]]
-		u.active = false
-		u.died.connect(_on_unit_died)
+	_dead_roster_ids.clear()
+	var enemy_counters: Dictionary = {}
+	for spec in stage["enemies"]:
+		var type: String = spec["type"]
+		enemy_counters[type] = enemy_counters.get(type, 0) + 1
+		var enemy := _make_unit(Unit.TEAM_ENEMY, type, spec["pos"], rect)
+		enemy.name = "E_%s_%d" % [_type_char(type), enemy_counters[type]]
+		_units.add_child(enemy)
+		_initial_enemy_count += 1
+	GameState.clamp_deployment(Stages.deploy_cap(stage))
+	var deployed := GameState.deployed_units()
+	var positions := Stages.assign_slots(stage, deployed)
+	for i in range(deployed.size()):
+		var entry: Dictionary = deployed[i]
+		var u := _make_unit(Unit.TEAM_PLAYER, entry["type"], positions[i], rect)
+		u.roster_id = entry["id"]
+		u.name = "P_%s_%d" % [_type_char(entry["type"]), entry["id"]]
+		var squad: int = entry["squad"]
+		if squad > 0:
+			u.set_squad(squad)
+			if not _squads.has(squad):
+				var members: Array[Unit] = []
+				_squads[squad] = members
+			_squads[squad].append(u)
 		_units.add_child(u)
-		if spec["team"] == Unit.TEAM_PLAYER:
-			_initial_player_count += 1
-		else:
-			_initial_enemy_count += 1
+		_initial_player_count += 1
+	print("[Main] spawned %d players (roster %d) vs %d enemies" % [
+		_initial_player_count, GameState.roster.size(), _initial_enemy_count,
+	])
+
+
+func _make_unit(team: int, type: String, pos: Vector2, rect: Rect2) -> Unit:
+	var u: Unit = UnitScene.instantiate()
+	u.team = team
+	u.unit_type = Unit.UnitType.RANGED if type == "ranged" else Unit.UnitType.MELEE
+	u.position = pos
+	u.battlefield_rect = rect
+	u.active = false
+	u.died.connect(_on_unit_died)
+	return u
+
+
+func _type_char(type: String) -> String:
+	return "R" if type == "ranged" else "M"
 
 
 func _start_countdown() -> void:
@@ -172,11 +209,21 @@ func _assign_squad(num: int) -> void:
 	for u in get_tree().get_nodes_in_group("units"):
 		var unit := u as Unit
 		if unit.squad_id == num and not alive.has(unit):
-			unit.set_squad(0)
+			_set_unit_squad(unit, 0)
+	for other in _squads.keys():
+		if other != num:
+			for u in alive:
+				_squads[other].erase(u)
 	for u in alive:
-		u.set_squad(num)
+		_set_unit_squad(u, num)
 	_squads[num] = alive
 	print("[Main] squad %d assigned: %d units" % [num, alive.size()])
+
+
+func _set_unit_squad(unit: Unit, num: int) -> void:
+	unit.set_squad(num)
+	if unit.roster_id >= 0:
+		GameState.set_unit_squad(unit.roster_id, num)
 
 
 func _select_squad(num: int) -> void:
@@ -353,6 +400,8 @@ func _spawn_move_marker(pos: Vector2) -> void:
 
 func _on_unit_died(unit: Unit) -> void:
 	print("[Main] on_unit_died: %s" % unit.name)
+	if unit.roster_id >= 0 and not _dead_roster_ids.has(unit.roster_id):
+		_dead_roster_ids.append(unit.roster_id)
 	if _selected_units.has(unit):
 		_selected_units.erase(unit)
 		_refresh_selection_ui()
@@ -384,6 +433,7 @@ func _check_end_state() -> void:
 	var kills := _initial_enemy_count - enemies_alive
 	var losses := _initial_player_count - players_alive
 	var result: String
+	var reward := 0
 	if players_alive == 0 and enemies_alive == 0:
 		_last_won = false
 		result = "draw"
@@ -392,35 +442,61 @@ func _check_end_state() -> void:
 		_last_won = true
 		result = "win"
 		_result_title.text = "완주!" if last_stage else "스테이지 %d 클리어" % stage_num
+		var stage_reward: int = int(Stages.STAGES[_stage_index].get("reward", 0))
+		var kill_bonus: int = kills * GameState.KILL_BOUNTY
+		reward = stage_reward + kill_bonus
 	else:
 		_last_won = false
 		result = "lose"
 		_result_title.text = "패배"
-	_result_stats.text = "처치 %d · 아군 생존 %d / %d" % [kills, players_alive, _initial_player_count]
+	GameState.record_battle(result, kills, losses, players_alive, reward, _dead_roster_ids)
+	var game_over := GameState.is_game_over()
+	var stats := "처치 %d · 아군 생존 %d / %d" % [kills, players_alive, _initial_player_count]
+	if losses > 0:
+		stats += "\n전사 %d명 영구 손실 (남은 보유 유닛 %d)" % [losses, GameState.roster.size()]
+	if reward > 0:
+		stats += "\n보상 %d G (기본 %d + 처치 %d×%d)" % [
+			reward, int(Stages.STAGES[_stage_index].get("reward", 0)),
+			kills, GameState.KILL_BOUNTY,
+		]
+	if game_over:
+		stats += "\n남은 유닛도, 고용할 돈도 없습니다"
+	_result_stats.text = stats
+	# 결과는 버튼을 누르기 전에 바로 저장한다 (타이틀로 나가도 손실·보상이 되돌려지지 않게).
+	_primary_goes_title = false
+	_result_secondary_button.text = "타이틀로"
 	if _last_won and last_stage:
+		_primary_goes_title = true
 		_result_primary_button.text = "타이틀로"
 		_result_secondary_button.visible = false
+		GameState.delete_save()
 	elif _last_won:
 		_result_primary_button.text = "다음 스테이지"
-		_result_secondary_button.text = "타이틀로"
 		_result_secondary_button.visible = true
+		GameState.advance_stage()
+		GameState.save()
+	elif game_over:
+		_primary_goes_title = true
+		_result_title.text = "게임 오버"
+		_result_primary_button.text = "타이틀로"
+		_result_secondary_button.visible = false
+		GameState.delete_save()
 	else:
-		_result_primary_button.text = "재도전"
-		_result_secondary_button.text = "타이틀로"
+		_result_primary_button.text = "재정비"
 		_result_secondary_button.visible = true
+		GameState.save()
 	_result_panel.visible = true
-	GameState.record_battle(result, kills, losses, players_alive)
-	print("[Main] GAME OVER stage=%d result=%s kills=%d losses=%d" % [stage_num, result, kills, losses])
+	_refresh_money()
+	print("[Main] GAME OVER stage=%d result=%s kills=%d losses=%d reward=%d campaign_over=%s" % [
+		stage_num, result, kills, losses, reward, game_over,
+	])
 
 
 func _on_primary_result_pressed() -> void:
-	if _last_won and GameState.is_last_stage():
-		GameState.delete_save()
-		print("[Main] primary -> Title (campaign complete)")
+	if _primary_goes_title:
+		print("[Main] primary -> Title (campaign ended)")
 		get_tree().change_scene_to_file("res://scenes/Title.tscn")
 		return
-	if _last_won:
-		GameState.advance_stage()
 	print("[Main] primary -> Prep (stage %d)" % (GameState.current_stage + 1))
 	get_tree().change_scene_to_file("res://scenes/Prep.tscn")
 

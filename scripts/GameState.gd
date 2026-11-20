@@ -1,30 +1,158 @@
 extends Node
 
 const SAVE_PATH := "user://save.json"
+const STARTING_MONEY: int = 100
+const KILL_BOUNTY: int = 5
+const STARTING_ROSTER := ["melee", "melee", "melee", "ranged", "ranged"]
 
 var current_stage: int = 0
+var money: int = STARTING_MONEY
+# 보유 유닛 명단. 항목: {"id": int, "type": "melee"|"ranged", "squad": int, "deployed": bool}
+var roster: Array[Dictionary] = []
 var last_result: String = ""
 var last_kills: int = 0
 var last_player_losses: int = 0
 var last_survivors: int = 0
+var last_reward: int = 0
+
+var _next_unit_id: int = 1
+
+
+func _ready() -> void:
+	_reset_roster()
 
 
 func reset_campaign() -> void:
 	current_stage = 0
+	money = STARTING_MONEY
+	_reset_roster()
+	_clear_last_result()
+	delete_save()
+	print("[GameState] campaign reset (money=%d roster=%d)" % [money, roster.size()])
+
+
+func _reset_roster() -> void:
+	roster.clear()
+	_next_unit_id = 1
+	for type in STARTING_ROSTER:
+		_add_unit(type, true)
+
+
+func _clear_last_result() -> void:
 	last_result = ""
 	last_kills = 0
 	last_player_losses = 0
 	last_survivors = 0
-	delete_save()
-	print("[GameState] campaign reset")
+	last_reward = 0
 
 
-func record_battle(result: String, kills: int, player_losses: int, survivors: int) -> void:
+func _add_unit(type: String, deployed: bool) -> Dictionary:
+	var entry := {"id": _next_unit_id, "type": type, "squad": 0, "deployed": deployed}
+	_next_unit_id += 1
+	roster.append(entry)
+	return entry
+
+
+# --- 명단 조회/조작 ---
+
+func find_unit(id: int) -> Dictionary:
+	for entry in roster:
+		if entry["id"] == id:
+			return entry
+	return {}
+
+
+func deployed_units() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for entry in roster:
+		if entry["deployed"]:
+			out.append(entry)
+	return out
+
+
+func deployed_count() -> int:
+	return deployed_units().size()
+
+
+func set_deployed(id: int, value: bool, deploy_cap: int) -> bool:
+	var entry := find_unit(id)
+	if entry.is_empty():
+		return false
+	if value and not entry["deployed"] and deployed_count() >= deploy_cap:
+		print("[GameState] deploy refused for #%d: cap %d reached" % [id, deploy_cap])
+		return false
+	entry["deployed"] = value
+	print("[GameState] unit #%d deployed=%s (%d/%d)" % [id, value, deployed_count(), deploy_cap])
+	save()
+	return true
+
+
+func clamp_deployment(deploy_cap: int) -> void:
+	var count := 0
+	for entry in roster:
+		if not entry["deployed"]:
+			continue
+		count += 1
+		if count > deploy_cap:
+			entry["deployed"] = false
+			print("[GameState] unit #%d benched (over cap %d)" % [entry["id"], deploy_cap])
+
+
+func set_unit_squad(id: int, squad: int) -> void:
+	var entry := find_unit(id)
+	if not entry.is_empty():
+		entry["squad"] = squad
+
+
+func hire(type: String, deploy_cap: int) -> bool:
+	if not UnitStats.HIRE.has(type):
+		return false
+	var price: int = UnitStats.HIRE[type]["price"]
+	if money < price:
+		print("[GameState] hire %s refused: money %d < price %d" % [type, money, price])
+		return false
+	money -= price
+	var entry := _add_unit(type, deployed_count() < deploy_cap)
+	print("[GameState] hired %s #%d for %d G (money=%d roster=%d deployed=%s)" % [
+		type, entry["id"], price, money, roster.size(), entry["deployed"],
+	])
+	save()
+	return true
+
+
+func cheapest_hire_price() -> int:
+	var cheapest := -1
+	for type in UnitStats.HIRE:
+		var price: int = UnitStats.HIRE[type]["price"]
+		if cheapest < 0 or price < cheapest:
+			cheapest = price
+	return cheapest
+
+
+# 보유 유닛이 없고 새로 고용할 돈도 없으면 캠페인을 이어갈 수 없다.
+func is_game_over() -> bool:
+	return roster.is_empty() and money < cheapest_hire_price()
+
+
+# --- 전투 결과 ---
+
+func record_battle(result: String, kills: int, player_losses: int, survivors: int, reward: int, dead_ids: Array[int]) -> void:
 	last_result = result
 	last_kills = kills
 	last_player_losses = player_losses
 	last_survivors = survivors
-	print("[GameState] record: %s kills=%d losses=%d survivors=%d" % [result, kills, player_losses, survivors])
+	last_reward = reward
+	if reward > 0:
+		money += reward
+	if not dead_ids.is_empty():
+		var kept: Array[Dictionary] = []
+		for entry in roster:
+			if not dead_ids.has(entry["id"]):
+				kept.append(entry)
+		roster = kept
+	print("[GameState] record: %s kills=%d losses=%d survivors=%d reward=%d money=%d roster=%d (lost ids %s)" % [
+		result, kills, player_losses, survivors, reward, money, roster.size(), dead_ids,
+	])
 
 
 func advance_stage() -> void:
@@ -36,6 +164,8 @@ func is_last_stage() -> bool:
 	return current_stage + 1 >= Stages.STAGES.size()
 
 
+# --- 세이브/로드 ---
+
 func has_save() -> bool:
 	return FileAccess.file_exists(SAVE_PATH)
 
@@ -45,9 +175,14 @@ func save() -> void:
 	if f == null:
 		push_warning("[GameState] save open failed: %s" % FileAccess.get_open_error())
 		return
-	var payload := {"current_stage": current_stage}
+	var payload := {
+		"current_stage": current_stage,
+		"money": money,
+		"roster": roster,
+		"next_unit_id": _next_unit_id,
+	}
 	f.store_string(JSON.stringify(payload))
-	print("[GameState] saved stage %d" % (current_stage + 1))
+	print("[GameState] saved stage %d (money=%d roster=%d)" % [current_stage + 1, money, roster.size()])
 
 
 func load_save() -> bool:
@@ -69,12 +204,36 @@ func load_save() -> bool:
 		delete_save()
 		return false
 	current_stage = idx
-	last_result = ""
-	last_kills = 0
-	last_player_losses = 0
-	last_survivors = 0
-	print("[GameState] loaded stage %d" % (current_stage + 1))
+	money = int(parsed.get("money", STARTING_MONEY))
+	if parsed.get("roster") is Array:
+		_load_roster(parsed["roster"], int(parsed.get("next_unit_id", 1)))
+	else:
+		# 명단 도입 이전 세이브: 기본 편성으로 시작
+		_reset_roster()
+	_clear_last_result()
+	print("[GameState] loaded stage %d (money=%d roster=%d)" % [current_stage + 1, money, roster.size()])
 	return true
+
+
+func _load_roster(raw: Array, next_id: int) -> void:
+	roster.clear()
+	var max_id := 0
+	for item in raw:
+		if not (item is Dictionary) or not UnitStats.HIRE.has(item.get("type", "")):
+			push_warning("[GameState] skipping invalid roster entry: %s" % [item])
+			continue
+		var id := int(item.get("id", 0))
+		if id <= 0 or not find_unit(id).is_empty():
+			push_warning("[GameState] skipping roster entry with bad id: %s" % [item])
+			continue
+		roster.append({
+			"id": id,
+			"type": String(item["type"]),
+			"squad": int(item.get("squad", 0)),
+			"deployed": bool(item.get("deployed", false)),
+		})
+		max_id = maxi(max_id, id)
+	_next_unit_id = maxi(next_id, max_id + 1)
 
 
 func delete_save() -> void:
