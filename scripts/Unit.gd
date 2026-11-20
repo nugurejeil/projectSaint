@@ -3,18 +3,20 @@ extends Area2D
 # 전투 유닛 하나. 수치와 행동 특성은 UnitTypes에서 type_id로 읽어 온다.
 
 signal died(unit: Unit)
+signal damaged(unit: Unit)
 
 const GROUP := "units"
 const TEAM_PLAYER := 0
 const TEAM_ENEMY := 1
 const HALF_SIZE: float = 20.0
+# 공격 대상 고르는 방식
+const TARGET_NEAREST := "nearest"
+const TARGET_WEAKEST := "weakest"  # 사거리 안에서 체력이 가장 낮은 적
 
 const FLASH_DURATION: float = 0.15
 const FLASH_COLOR := Color(3.0, 3.0, 3.0, 1.0)
 const SEPARATION_RADIUS: float = 42.0
 const SEPARATION_SPEED: float = 80.0
-const CIRCLE_SIDES := 20
-const CIRCLE_RADIUS := 18.0
 const RANGED_KITE_MIN_DIST: float = 140.0
 const RANGED_KITE_BUFFER: float = 40.0
 const PLAYER_AUTO_ENGAGE_RADIUS: float = 220.0
@@ -34,6 +36,9 @@ var team: int = TEAM_PLAYER
 var roster_id: int = -1
 var battlefield_rect: Rect2 = Rect2(40, 40, 1200, 640)
 var projectile_parent: Node = null
+var targeting: String = TARGET_NEAREST
+# 부대가 함께 움직일 때 가장 느린 유닛에 맞추기 위한 이동 속도 상한 (EnemySquad가 설정)
+var speed_limit: float = INF
 var pushable: bool = true
 var ai_enabled: bool = true
 var active: bool = true
@@ -80,16 +85,7 @@ func _apply_type() -> void:
 	attack_cooldown = s["cooldown"]
 	_uses_projectile = def["projectile"]
 	_enemy_kites = def["enemy_kites"]
-	if def["shape"] == UnitTypes.SHAPE_CIRCLE:
-		_body.polygon = _make_circle_polygon(CIRCLE_RADIUS, CIRCLE_SIDES)
-
-
-func _make_circle_polygon(radius: float, sides: int) -> PackedVector2Array:
-	var pts := PackedVector2Array()
-	for i in range(sides):
-		var a := TAU * float(i) / float(sides)
-		pts.append(Vector2(cos(a), sin(a)) * radius)
-	return pts
+	_body.polygon = UnitTypes.body_polygon(type_id)
 
 
 func is_alive() -> bool:
@@ -181,6 +177,8 @@ func _update_combat(delta: float) -> void:
 func _pick_combat_target() -> Unit:
 	if team == TEAM_PLAYER and _has_target and not _attack_moving and not _auto_engaging:
 		return null
+	if targeting == TARGET_WEAKEST:
+		return _find_weakest_enemy(attack_range)
 	return _find_nearest_enemy(attack_range)
 
 
@@ -210,6 +208,20 @@ func _find_nearest_enemy(max_range: float = INF) -> Unit:
 	return closest
 
 
+func _find_weakest_enemy(max_range: float) -> Unit:
+	var weakest: Unit = null
+	var max_dist_sq := max_range * max_range
+	for node in get_tree().get_nodes_in_group(GROUP):
+		var other := node as Unit
+		if other == self or other.team == team or not other.is_alive():
+			continue
+		if global_position.distance_squared_to(other.global_position) > max_dist_sq:
+			continue
+		if weakest == null or other.health < weakest.health:
+			weakest = other
+	return weakest
+
+
 func take_damage(amount: float) -> void:
 	if not is_alive():
 		return
@@ -222,6 +234,8 @@ func take_damage(amount: float) -> void:
 		print("[Unit] %s died" % name)
 		queue_free()
 		died.emit(self)
+	else:
+		damaged.emit(self)
 
 
 # --- 이동 ---
@@ -231,7 +245,7 @@ func _update_movement(delta: float) -> void:
 		return
 	var to_target := _target_pos - global_position
 	var dist := to_target.length()
-	var step := move_speed * delta
+	var step := minf(move_speed, speed_limit) * delta
 	if dist <= step:
 		global_position = _target_pos
 		_has_target = false

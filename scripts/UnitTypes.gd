@@ -10,9 +10,17 @@ const ROWS := [ROW_FRONT, ROW_BACK]
 
 const SHAPE_SQUARE := "square"
 const SHAPE_CIRCLE := "circle"
+const SHAPE_TRIANGLE := "triangle"
+
+# 모양별 몸체 폴리곤(정다각형의 변 수·반지름)과 UI 목록용 글리프
+const SHAPES := {
+	SHAPE_SQUARE: {"sides": 4, "radius": 28.3, "angle": PI / 4.0, "icon": "■"},
+	SHAPE_CIRCLE: {"sides": 20, "radius": 18.0, "angle": 0.0, "icon": "●"},
+	SHAPE_TRIANGLE: {"sides": 3, "radius": 24.0, "angle": -PI / 2.0, "icon": "▲"},
+}
 
 # 화면에 나열하는 순서 (고용 목록, 편성 요약)
-const ORDER := ["melee", "ranged"]
+const ORDER := ["melee", "ranged", "sniper"]
 
 # label       화면 표시 이름
 # code        유닛 노드 이름·로그용 한 글자
@@ -45,6 +53,18 @@ const TYPES := {
 		"player": {"health": 95.0, "speed": 200.0, "range": 300.0, "damage": 24.0, "cooldown": 1.2},
 		"enemy": {"health": 70.0, "speed": 180.0, "range": 280.0, "damage": 18.0, "cooldown": 1.4},
 	},
+	# 사거리 최장 · 연사 최저 · 이속 최저. 원거리병을 사거리 밖에서 잡지만 근접병이 붙으면 약하다.
+	"sniper": {
+		"label": "저격병",
+		"code": "S",
+		"shape": SHAPE_TRIANGLE,
+		"row": ROW_BACK,
+		"projectile": true,
+		"enemy_kites": true,
+		"price": 90,
+		"player": {"health": 70.0, "speed": 130.0, "range": 480.0, "damage": 60.0, "cooldown": 2.6},
+		"enemy": {"health": 55.0, "speed": 110.0, "range": 460.0, "damage": 45.0, "cooldown": 2.8},
+	},
 }
 
 
@@ -66,6 +86,20 @@ static func label(id: String) -> String:
 
 static func price(id: String) -> int:
 	return TYPES[id]["price"]
+
+
+static func icon(id: String) -> String:
+	return SHAPES[TYPES[id]["shape"]]["icon"]
+
+
+static func body_polygon(id: String) -> PackedVector2Array:
+	var shape: Dictionary = SHAPES[TYPES[id]["shape"]]
+	var sides: int = shape["sides"]
+	var pts := PackedVector2Array()
+	for i in range(sides):
+		var a: float = shape["angle"] + TAU * float(i) / float(sides)
+		pts.append(Vector2(cos(a), sin(a)) * shape["radius"])
+	return pts
 
 
 static func hireable() -> Array[String]:

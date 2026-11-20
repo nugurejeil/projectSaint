@@ -17,6 +17,7 @@ var _outcome: String = ""
 
 @onready var _units: Node2D = $Units
 @onready var _projectiles: Node2D = $Projectiles
+@onready var _enemy_squads: Node = $EnemySquads
 @onready var _battlefield: Polygon2D = $Battlefield
 @onready var _selection: SelectionController = $Selection
 @onready var _result_panel: ResultPanel = $UI/ResultPanel
@@ -69,8 +70,24 @@ func _spawn_enemies() -> void:
 		counters[type] = counters.get(type, 0) + 1
 		var enemy := _make_unit(Unit.TEAM_ENEMY, type, spec["pos"])
 		enemy.name = "E_%s_%d" % [UnitTypes.get_def(type)["code"], counters[type]]
+		enemy.targeting = spec.get("targeting", Unit.TARGET_NEAREST)
 		_units.add_child(enemy)
 		_initial_enemy_count += 1
+		var squad_id: int = spec.get("squad", 0)
+		if squad_id > 0:
+			_enemy_squad(squad_id).add_member(enemy)
+
+
+# 스테이지 데이터의 squad 번호에 해당하는 적 부대를 찾거나 만든다. 번호가 없는 적은 개별 행동한다.
+func _enemy_squad(squad_id: int) -> EnemySquad:
+	var node_name := "Squad%d" % squad_id
+	var squad := _enemy_squads.get_node_or_null(node_name) as EnemySquad
+	if squad == null:
+		squad = EnemySquad.new()
+		squad.name = node_name
+		squad.behavior = Stages.enemy_squad_behavior(_stage, squad_id)
+		_enemy_squads.add_child(squad)
+	return squad
 
 
 func _spawn_players() -> void:

@@ -101,7 +101,7 @@ func _make_roster_row(entry: Dictionary) -> Control:
 
 func _make_icon(type: String) -> Label:
 	var icon := Label.new()
-	icon.text = "●" if UnitTypes.get_def(type)["shape"] == UnitTypes.SHAPE_CIRCLE else "■"
+	icon.text = UnitTypes.icon(type)
 	icon.add_theme_color_override("font_color", UNIT_COLOR)
 	icon.add_theme_font_size_override("font_size", 26)
 	icon.custom_minimum_size = Vector2(30, 0)

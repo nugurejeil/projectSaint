@@ -19,6 +19,8 @@ polygon = PackedVector2Array(40, 40, 1240, 40, 1240, 680, 40, 680)
 
 [node name="Projectiles" type="Node2D" parent="."]
 
+[node name="EnemySquads" type="Node" parent="."]
+
 [node name="Selection" type="Node2D" parent="."]
 script = ExtResource("4_selection")
 
